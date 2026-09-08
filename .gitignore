@@ -1,0 +1,62 @@
+### Gradle / Java ###
+.gradle
+.kotlin/
+build/
+*.class
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### Local environment ###
+.env
+.env.*
+!.env.example
+!.env.sample
+
+### Logs / JVM crash dumps ###
+*.log
+logs/
+hs_err_pid*
+replay_pid*
+*.hprof
+
+### H2 local database ###
+*.mv.db
+*.trace.db
+
+### OS ###
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
