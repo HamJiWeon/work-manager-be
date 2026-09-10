@@ -1,7 +1,13 @@
 # DB 마이그레이션
 
 테이블, 인덱스, PK/FK, UNIQUE, CHECK 등 스키마 변경은 이 디렉터리의 Flyway SQL로 관리한다.
-현재 도메인 테이블은 구현 전이므로 실행할 마이그레이션은 아직 없다.
+`V1__create_initial_tables.sql`은 ERD의 `users`, `oauth_accounts`, `projects`, `members`, `workspaces`, `boards`, `cards`를 생성한다.
+사용자 ID는 UUID이며 애플리케이션에서 지정한다. 나머지 ID는 현재 Java Long 매핑에 맞춰 BIGINT IDENTITY를 사용한다.
+ERD의 TIMEDATE/DATETIME 및 소셜 계정 생성 시각은 TIMESTAMP(6)으로 통일한다.
+`members`에는 Member가 상속하는 `created_at`, `updated_at`도 포함한다.
+워크스페이스는 이미지의 프로젝트 1:N 관계를 유지한다. 카드의 컬럼명과 NULL 허용 여부도 이미지를 따른다.
+프로젝트 코드, 소셜 계정 식별자, 프로젝트 참여에 유일 제약을 두고, 카드의 보드와 담당자가 같은 프로젝트에 속하도록 복합 FK를 설정한다.
+현재 엔티티는 기본 골격이므로 저장 기능 구현 시 필수 컬럼 매핑과 값 설정을 추가해야 한다.
 
 - 첫 스키마 파일: `V1__create_initial_tables.sql`
 - 이후 변경 예시: `V2__add_card_constraints.sql`
