@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @ToString(callSuper = true)
-public abstract class UpdateEntity extends CreateEntity {
+public abstract class UpdateEntity {
 
     @LastModifiedDate
     private LocalDateTime updatedAt;

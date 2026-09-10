@@ -10,7 +10,7 @@ import lombok.ToString;
 @MappedSuperclass
 @Getter
 @ToString
-public abstract class BaseEntity {
+public abstract class BaseEntity extends CreateEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
