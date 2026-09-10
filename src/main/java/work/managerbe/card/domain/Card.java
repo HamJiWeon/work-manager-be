@@ -5,11 +5,11 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import work.managerbe.global.base.UpdateEntity;
+import work.managerbe.global.base.BaseEntity;
 
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "cards")
-public class Card extends UpdateEntity {
+public class Card extends BaseEntity {
 }
