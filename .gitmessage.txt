@@ -4,3 +4,10 @@
 # test: 테스트 추가 또는 수정
 # docs: 문서 수정
 # chore: 빌드, 설정, 기타 작업
+
+# feat:
+# fix:
+# refactor:
+# test:
+# docs:
+# chore:
