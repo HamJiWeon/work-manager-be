@@ -12,9 +12,9 @@ import java.time.LocalDateTime;
 
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
+@ToString
 @Getter
-@ToString(callSuper = true)
-public abstract class CreateEntity extends UpdateEntity {
+public abstract class CreateEntity {
 
     @CreatedDate
     @Column(updatable = false)

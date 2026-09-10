@@ -38,14 +38,13 @@ AI 에이전트는 코드를 작성하거나 수정할 때 본 문서의 규칙�
 - 주석은 가급적 작성하지 않는다. 다만 cron 표현식, 정규식, javadoc, 테스트의 given/when/then 구분에는 사용할 수 있다.
 - 코드 작성 후에 javadoc으로 어떤 로직을 사용해서 코드를 작성했는지 작성한다.
 
-## 5. 테스트 전략 (Testing Strategy)
+## 5. 테스트 전략
 - 단위 테스트와 통합 테스트에 JUnit 5를 사용한다.
 - 단위 테스트의 의존성 모킹에는 Mockito를 사용한다.
 - Spring MVC 컨트롤러 테스트에는 @WebMvcTest(ControllerClass.class)를 사용한다.
 - Spring 컨텍스트가 필요한 통합 테스트에는 @SpringBootTest를 사용한다.
 - 테스트 메서드를 given/when/then 구조로 작성한다.
-- 테스트 메서드 이름은 snake_case를 사용한다.
-  - 예: get_user_by_id_ok, get_user_by_id_not_found_ko
+- 테스트 메서드 이름은 한글을 사용한다.
 - 테스트에서 리플렉션 사용을 피한다.
 - 테스트에 비즈니스 로직을 넣지 말고, 동작 검증에 집중한다.
 
@@ -53,7 +52,7 @@ AI 에이전트는 코드를 작성하거나 수정할 때 본 문서의 규칙�
 ## DB 마이그레이션 규칙
 - [README.md](src/main/resources/db/migration/README.md) 읽고 적용한다.
 
-## 코드 리뷰 규칙
+## PR 코드 리뷰 규칙
 - 코드 리뷰를 요청받으면 Open Code Review의 위임 모드(delegate)를 사용한다.
 - 별도 API 키 없이 Codex 모델로 리뷰하고, 결과는 한국어로 작성한다.
 - 명시적으로 요청하지 않는 한 코드는 수정하지 않는다.
