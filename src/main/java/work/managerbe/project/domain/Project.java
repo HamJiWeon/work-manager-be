@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import work.managerbe.global.base.BaseEntity;
@@ -28,4 +29,22 @@ public class Project extends BaseEntity {
 
     private String description;
 
+    @Builder
+    private Project(String code, String name, String cardPrefix, long nextCardNumber, String description) {
+        this.code = code;
+        this.name = name;
+        this.cardPrefix = cardPrefix;
+        this.nextCardNumber = nextCardNumber;
+        this.description = description;
+    }
+
+    public static Project create(String code, String name, String cardPrefix, String description) {
+        return Project.builder()
+                .code(code)
+                .name(name)
+                .cardPrefix(cardPrefix)
+                .nextCardNumber(1L)
+                .description(description)
+                .build();
+    }
 }
