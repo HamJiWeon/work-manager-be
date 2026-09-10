@@ -1,0 +1,7 @@
+# Local in-memory database. Activate with the dev profile.
+spring:
+  datasource:
+    url: jdbc:h2:mem:manager;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
