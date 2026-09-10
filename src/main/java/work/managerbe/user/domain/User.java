@@ -2,9 +2,10 @@ package work.managerbe.user.domain;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import work.managerbe.global.base.CreateEntity;
+import work.managerbe.global.base.UpdateEntity;
 
 import java.util.UUID;
 
@@ -12,7 +13,7 @@ import java.util.UUID;
 @Getter
 @Table(name = "users")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class User extends CreateEntity {
+public class User extends UpdateEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -25,5 +26,19 @@ public class User extends CreateEntity {
 
     private String profileImgUrl;
 
+    @Builder
+    private User(String name, String email, String profileImgUrl) {
+        this.name = name;
+        this.email = email;
+        this.profileImgUrl = profileImgUrl;
+    }
+
+    public static User create(String name, String email, String profileImgUrl) {
+        return User.builder()
+                .name(name)
+                .email(email)
+                .profileImgUrl(profileImgUrl)
+                .build();
+    }
 
 }

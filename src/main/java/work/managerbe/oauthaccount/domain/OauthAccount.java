@@ -2,6 +2,7 @@ package work.managerbe.oauthaccount.domain;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import work.managerbe.global.base.CreateEntity;
@@ -26,5 +27,20 @@ public class OauthAccount extends CreateEntity {
 
     @Column(nullable = false)
     private String providerUserId;
+
+    @Builder
+    private OauthAccount(User user, String provider, String providerUserId) {
+        this.user = user;
+        this.provider = provider;
+        this.providerUserId = providerUserId;
+    }
+
+    public static OauthAccount create(User user, String provider, String providerUserId) {
+        return OauthAccount.builder()
+                .user(user)
+                .provider(provider)
+                .providerUserId(providerUserId)
+                .build();
+    }
 
 }
