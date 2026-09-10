@@ -9,8 +9,8 @@ import lombok.ToString;
 
 @MappedSuperclass
 @Getter
-@ToString
-public abstract class BaseEntity extends CreateEntity {
+@ToString(callSuper = true)
+public abstract class BaseEntity extends UpdateEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

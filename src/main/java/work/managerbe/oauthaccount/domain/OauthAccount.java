@@ -4,14 +4,18 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import work.managerbe.global.base.BaseEntity;
+import work.managerbe.global.base.CreateEntity;
 import work.managerbe.user.domain.User;
 
 @Entity
 @Getter
 @Table(name = "oauth_accounts")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class OauthAccount extends BaseEntity {
+public class OauthAccount extends CreateEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

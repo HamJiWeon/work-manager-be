@@ -18,7 +18,6 @@ CREATE TABLE projects (
     created_at TIMESTAMP(6) NOT NULL,
     updated_at TIMESTAMP(6) NOT NULL,
     CONSTRAINT pk_projects PRIMARY KEY (id),
-    CONSTRAINT uk_projects_code UNIQUE (code),
     CONSTRAINT ck_projects_next_card_number CHECK (next_card_number > 0)
 );
 
