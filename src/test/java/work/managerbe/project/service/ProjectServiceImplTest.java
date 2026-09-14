@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -79,13 +80,12 @@ class ProjectServiceImplTest {
                 new ProjectCreateRequest(null, "WORK", "프로젝트 설명");
 
         // when
-        ProjectException exception = catchThrowableOfType(
-                () -> projectService.create(userId, request),
-                ProjectException.class
+        ProjectException exception = assertThrows(
+                ProjectException.class,
+                () -> projectService.create(userId, request)
         );
 
         // then
-        assertThat(exception).isNotNull();
         assertThat(exception.getErrorCode())
                 .isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
 
@@ -101,13 +101,12 @@ class ProjectServiceImplTest {
                 new ProjectCreateRequest("업무 관리", "   ", "프로젝트 설명");
 
         // when
-        ProjectException exception = catchThrowableOfType(
-                () -> projectService.create(userId, request),
-                ProjectException.class
+        ProjectException exception = assertThrows(
+                ProjectException.class,
+                () -> projectService.create(userId, request)
         );
 
         // then
-        assertThat(exception).isNotNull();
         assertThat(exception.getErrorCode())
                 .isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
 
