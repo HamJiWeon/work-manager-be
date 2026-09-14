@@ -22,27 +22,22 @@ public class Project extends BaseEntity {
     private String name;
 
     @Column(nullable = false)
-    private String cardPrefix;
-
-    @Column(nullable = false)
     private long nextCardNumber;
 
     private String description;
 
     @Builder
-    private Project(String code, String name, String cardPrefix, long nextCardNumber, String description) {
+    private Project(String code, String name, long nextCardNumber, String description) {
         this.code = code;
         this.name = name;
-        this.cardPrefix = cardPrefix;
         this.nextCardNumber = nextCardNumber;
         this.description = description;
     }
 
-    public static Project create(String code, String name, String cardPrefix, String description) {
+    public static Project create(String code, String name, String description) {
         return Project.builder()
                 .code(code)
                 .name(name)
-                .cardPrefix(cardPrefix)
                 .nextCardNumber(1L)
                 .description(description)
                 .build();
