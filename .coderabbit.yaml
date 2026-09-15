@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: ko-KR
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "^dev$"
+  path_filters:
+    - "!**/.env"
+    - "!**/.env.*"
+    - "!**/build/**"
+    - "!**/.gradle/**"
+    - "!gradle/wrapper/gradle-wrapper.jar"
+  path_instructions:
+    - path: "src/main/java/**/*.java"
+      instructions: |
+        한국어로 리뷰하고 AGENTS.md의 프로젝트 규칙을 따른다.
+        Java 21과 Spring Boot 4.1.1을 기준으로 실제 버그, 보안 문제,
+        트랜잭션 경계, JPA N+1 쿼리, 데이터 정합성과 예외 처리를 우선 검토한다.
+        인증 여부뿐 아니라 프로젝트와 리소스에 대한 접근 권한 검증도 확인한다.
+        Lombok @Getter와 @RequiredArgsConstructor를 활용하고 @Setter는 사용하지 않는다.
+        필드 주입 대신 final 필드와 단일 생성자를 통한 의존성 주입을 사용한다.
+        객체 생성에는 정적 팩터리 메서드를 사용하되 Spring의 생성자 주입과
+        JPA의 기본 생성자 요구사항을 고려한다.
+        엔티티의 비즈니스 메서드는 허용하지만 외부 DB 직접 제어는 피한다.
+        클래스는 PascalCase, 메서드와 변수는 camelCase를 사용하고
+        의미가 불분명한 숫자는 이름 있는 private static final 상수로 추출한다.
+        구현 로직을 설명하는 Javadoc을 작성하고 일반 주석은 최소화한다.
+        cron 표현식, 정규식, Javadoc은 주석을 허용한다.
+    - path: "src/test/**/*.java"
+      instructions: |
+        JUnit 5와 Mockito로 동작을 검증하고 테스트 메서드 이름은 한글로 작성한다.
+        given/when/then 구조를 사용하며 해당 구분 주석은 허용한다.
+        MVC 컨트롤러 테스트는 @WebMvcTest(ControllerClass.class),
+        Spring 컨텍스트가 필요한 통합 테스트는 @SpringBootTest를 사용한다.
+        리플렉션과 테스트 내부의 비즈니스 로직을 피한다.
+        변경된 동작의 정상 경로와 실패 경로, 권한 및 데이터 정합성을 검증하는지 확인한다.
+    - path: "src/main/resources/db/migration/**"
+      instructions: |
+        src/main/resources/db/migration/README.md의 Flyway 규칙을 따른다.
+        적용된 마이그레이션은 수정하거나 삭제하지 않고 새 버전 SQL을 추가한다.
+        파일명은 V{version}__{description}.sql 형식이며 버전은 중복 없이 증가해야 한다.
+        테이블, 인덱스, PK/FK, UNIQUE, CHECK 변경은 마이그레이션으로 관리한다.
+        제약조건에는 목적이 드러나는 이름을 지정하고 엔티티 매핑과 일치하는지 확인한다.
+        Hibernate ddl-auto=validate만으로 제약조건 전체가 검증된다고 가정하지 않는다.
+        H2와 PostgreSQL 16의 SQL 및 제약 동작 차이와 기존 데이터에 미치는 영향을 검토한다.
+
+chat:
+  auto_reply: true
