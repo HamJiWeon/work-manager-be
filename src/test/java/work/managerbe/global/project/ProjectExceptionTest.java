@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -89,12 +88,6 @@ class ProjectExceptionTest {
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("errorCode는 필수입니다.");
     }
-}
-
-/**
- * 프로젝트 예외 생성 시 오류 코드, 상세 정보와 원인이 보존되는지 검증한다.
- */
-class ProjectExceptionTest {
 
     @Nested
     @DisplayName("프로젝트 예외 생성")

@@ -39,7 +39,7 @@ class BoardRepositoryTest {
     @Test
     void 저장한_보드를_프로젝트와_감사_시각을_포함해_조회한다() {
         // given
-        Project project = Project.create("TEST", "테스트 프로젝트", "TST", null);
+        Project project = Project.create("TEST", "테스트 프로젝트", null);
         entityManager.persist(project);
         Board board = Board.create(BOARD_NAME, SORT_ORDER, project);
 
@@ -62,7 +62,7 @@ class BoardRepositoryTest {
     @Test
     void 보드를_삭제하면_조회되지_않고_프로젝트는_유지된다() {
         // given
-        Project project = Project.create("TEST", "테스트 프로젝트", "TST", null);
+        Project project = Project.create("TEST", "테스트 프로젝트", null);
         entityManager.persist(project);
         Board board = boardRepository.saveAndFlush(Board.create(BOARD_NAME, SORT_ORDER, project));
         entityManager.clear();

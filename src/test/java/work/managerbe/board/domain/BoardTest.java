@@ -16,7 +16,7 @@ class BoardTest {
     @Test
     void 이름과_정렬_순서와_프로젝트로_보드를_생성한다() {
         // given
-        Project project = Project.create("TEST", "테스트 프로젝트", "TST", null);
+        Project project = Project.create("TEST", "테스트 프로젝트", null);
 
         // when
         Board board = Board.create(BOARD_NAME, SORT_ORDER, project);

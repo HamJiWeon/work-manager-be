@@ -53,7 +53,7 @@ class CardRepositoryTest {
     @BeforeEach
     void 카드와_연관_데이터를_준비한다() {
         user = User.create(USERNAME, "test@example.com", null);
-        project = Project.create("TEST", "테스트 프로젝트", "TST", null);
+        project = Project.create("TEST", "테스트 프로젝트", null);
         entityManager.persist(user);
         entityManager.persist(project);
         member = Member.create(user, project, "MEMBER");
