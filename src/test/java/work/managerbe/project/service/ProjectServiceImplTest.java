@@ -18,7 +18,6 @@ import work.managerbe.project.repository.ProjectRepository;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -99,6 +98,48 @@ class ProjectServiceImplTest {
         UUID userId = UUID.randomUUID();
         ProjectCreateRequest request =
                 new ProjectCreateRequest("업무 관리", "   ", "프로젝트 설명");
+
+        // when
+        ProjectException exception = assertThrows(
+                ProjectException.class,
+                () -> projectService.create(userId, request)
+        );
+
+        // then
+        assertThat(exception.getErrorCode())
+                .isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
+
+        verifyNoInteractions(projectRepository, mapper);
+    }
+
+    @Test
+    @DisplayName("카드 접두사가 null이면 예외가 발생한다.")
+    void 카드접두사_누락() {
+        // given
+        UUID userId = UUID.randomUUID();
+        ProjectCreateRequest request =
+                new ProjectCreateRequest("업무 관리", null, "프로젝트 설명");
+
+        // when
+        ProjectException exception = assertThrows(
+                ProjectException.class,
+                () -> projectService.create(userId, request)
+        );
+
+        // then
+        assertThat(exception.getErrorCode())
+                .isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
+
+        verifyNoInteractions(projectRepository, mapper);
+    }
+
+    @Test
+    @DisplayName("프로젝트 이름이 공백이면 예외가 발생한다.")
+    void 이름_공백() {
+        // given
+        UUID userId = UUID.randomUUID();
+        ProjectCreateRequest request =
+                new ProjectCreateRequest("   ", "WORK", "프로젝트 설명");
 
         // when
         ProjectException exception = assertThrows(
