@@ -82,3 +82,28 @@ tasks.named('jacocoTestReport', JacocoReport) {
         csv.required = false
     }
 }
+
+/**
+ * 전체 클래스의 라인 커버리지가 80% 미만이면 검증을 실패시키고 HTML 리포트를 남긴다.
+ */
+tasks.named('jacocoTestCoverageVerification', JacocoCoverageVerification) {
+    dependsOn tasks.named('jacocoTestReport')
+
+    violationRules {
+        rule {
+            element = 'BUNDLE'
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.80
+            }
+        }
+    }
+}
+
+/**
+ * check 및 build 실행 시 테스트 커버리지 기준을 검증한다.
+ */
+tasks.named('check') {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
+}
