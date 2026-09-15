@@ -55,7 +55,11 @@ jobs:
         run: bash ./gradlew --no-daemon build
 
       - name: Upload coverage to Codecov
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        if: >-
+          ${{ !cancelled()
+            && hashFiles('build/reports/jacoco/test/jacocoTestReport.xml') != ''
+            && (github.event_name != 'pull_request'
+              || github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
