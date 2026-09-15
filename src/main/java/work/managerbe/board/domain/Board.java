@@ -16,6 +16,7 @@ public class Board extends BaseEntity {
 
     private String name;
 
+    @Column(insertable = false, updatable = false)
     private int sortOrder;
 
     @ManyToOne(fetch = FetchType.LAZY)

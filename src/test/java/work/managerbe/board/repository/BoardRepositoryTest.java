@@ -46,7 +46,7 @@ class BoardRepositoryTest {
         // given
         Project project = Project.create("TEST", "테스트 프로젝트", null);
         entityManager.persist(project);
-        Board board = Board.create(BOARD_NAME, SORT_ORDER, project);
+        Board board = project.addBoard(BOARD_NAME);
 
         // when
         Board saved = boardRepository.saveAndFlush(board);
@@ -57,7 +57,7 @@ class BoardRepositoryTest {
         assertThat(found).isNotSameAs(saved);
         assertThat(found.getId()).isEqualTo(saved.getId());
         assertThat(found.getName()).isEqualTo(BOARD_NAME);
-        assertThat(found.getSortOrder()).isEqualTo(SORT_ORDER);
+        assertThat(found.getSortOrder()).isZero();
         assertThat(found.getProject().getId()).isEqualTo(project.getId());
         assertThat(found.getProject().getName()).isEqualTo(project.getName());
         assertThat(found.getCreatedAt()).isNotNull();
@@ -69,7 +69,7 @@ class BoardRepositoryTest {
         // given
         Project project = Project.create("TEST", "테스트 프로젝트", null);
         entityManager.persist(project);
-        Board board = boardRepository.saveAndFlush(Board.create(BOARD_NAME, SORT_ORDER, project));
+        Board board = boardRepository.saveAndFlush(project.addBoard(BOARD_NAME));
         entityManager.clear();
 
         // when
@@ -97,47 +97,22 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // then
-        assertThat(first.sortOrder()).isEqualTo(1);
-        assertThat(second.sortOrder()).isEqualTo(2);
+        assertThat(first.sortOrder()).isZero();
+        assertThat(second.sortOrder()).isEqualTo(1);
         assertThat(second.projectId()).isEqualTo(project.getId());
         assertThat(second.createdAt()).isNotNull();
         assertThat(second.updatedAt()).isNotNull();
         Board saved = boardRepository.findById(second.id()).orElseThrow();
         assertThat(saved.getName()).isEqualTo("둘째 보드");
-        assertThat(saved.getSortOrder()).isEqualTo(2);
-    }
-
-    @Test
-    void 보드가_없는_프로젝트의_최대_순서는_0이다() {
-        // given
-        Project project = Project.create("EMPTY", "빈 프로젝트", null);
-        entityManager.persist(project);
-
-        // when
-        int maximum = boardRepository.findMaxSortOrderByProjectId(project.getId());
-
-        // then
-        assertThat(maximum).isZero();
-    }
-
-    @Test
-    void 다른_프로젝트를_제외하고_보드_개수가_아닌_최대_순서를_조회한다() {
-        // given
-        Project project = Project.create("TARGET", "대상", null);
-        Project other = Project.create("OTHER", "다른 프로젝트", null);
-        entityManager.persist(project);
-        entityManager.persist(other);
-        boardRepository.save(Board.create("첫 보드", 1, project));
-        boardRepository.save(Board.create("마지막 보드", 5, project));
-        boardRepository.save(Board.create("다른 보드", 10, other));
+        assertThat(saved.getSortOrder()).isEqualTo(1);
+        Project loaded = entityManager.find(Project.class, project.getId());
+        assertThat(loaded.getBoards()).extracting(Board::getName).containsExactly("첫 보드", "둘째 보드");
+        var third = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("셋째 보드"));
         entityManager.flush();
         entityManager.clear();
-
-        // when
-        int maximum = boardRepository.findMaxSortOrderByProjectId(project.getId());
-
-        // then
-        assertThat(maximum).isEqualTo(5);
+        assertThat(third.sortOrder()).isEqualTo(2);
+        assertThat(entityManager.find(Project.class, project.getId()).getBoards())
+                .extracting(Board::getName).containsExactly("첫 보드", "둘째 보드", "셋째 보드");;
     }
 
     @Test

@@ -13,7 +13,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.repository.BoardRepository;
-import work.managerbe.global.board.BoardErrorCode;
 import work.managerbe.global.board.BoardException;
 import work.managerbe.global.project.ProjectException;
 import work.managerbe.global.user.UserException;
@@ -26,7 +25,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * 저장소를 모킹하여 이름 검증, 조회 실패와 최대 순서 기반 생성을 검증한다.
+ * 저장소를 모킹하여 이름 검증, 조회 실패와 목록 끝에 추가을 검증한다.
  */
 @ExtendWith(MockitoExtension.class)
 class BoardServiceImplTest {
@@ -37,24 +36,23 @@ class BoardServiceImplTest {
     @Mock UserRepository userRepository;
     @InjectMocks BoardServiceImpl service;
 
-    @ParameterizedTest
-    @ValueSource(ints = {0, 5})
-    void 최대_순서_다음에_요청한_이름으로_생성한다(int maximum) {
+    @Test
+    void 기존_보드_뒤에_요청한_보드를_추가한다() {
         // given
         Project project = Project.create("TEST", "프로젝트", null);
+        Board existing = project.addBoard("기존 보드");
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         when(projectRepository.findByIdForUpdate(PROJECT_ID)).thenReturn(Optional.of(project));
-        when(boardRepository.findMaxSortOrderByProjectId(PROJECT_ID)).thenReturn(maximum);
         when(boardRepository.save(any(Board.class))).thenAnswer(invocation -> invocation.getArgument(0));
         // when
         var response = service.create(USER_ID, PROJECT_ID, new BoardCreateRequest("Board API"));
         // then
         assertThat(response.name()).isEqualTo("Board API");
-        assertThat(response.sortOrder()).isEqualTo(maximum + 1);
-        var order = inOrder(projectRepository, boardRepository);
-        order.verify(projectRepository).findByIdForUpdate(PROJECT_ID);
-        order.verify(boardRepository).findMaxSortOrderByProjectId(PROJECT_ID);
-        order.verify(boardRepository).save(argThat(board -> board.getProject() == project));
+        assertThat(response.sortOrder()).isEqualTo(1);
+        assertThat(project.getBoards()).hasSize(2);
+        assertThat(project.getBoards().getFirst()).isSameAs(existing);
+        assertThat(project.getBoards().getLast().getName()).isEqualTo("Board API");
+        verify(boardRepository).save(project.getBoards().getLast());
     }
 
     @ParameterizedTest
@@ -89,17 +87,4 @@ class BoardServiceImplTest {
         verifyNoInteractions(boardRepository);
     }
 
-    @Test
-    void 정렬_순서가_최댓값이면_저장하지_않는다() {
-        // given
-        when(userRepository.existsById(USER_ID)).thenReturn(true);
-        when(projectRepository.findByIdForUpdate(PROJECT_ID))
-                .thenReturn(Optional.of(Project.create("TEST", "프로젝트", null)));
-        when(boardRepository.findMaxSortOrderByProjectId(PROJECT_ID)).thenReturn(Integer.MAX_VALUE);
-        // when & then
-        assertThatThrownBy(() -> service.create(USER_ID, PROJECT_ID, new BoardCreateRequest("보드")))
-                .isInstanceOfSatisfying(BoardException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_SORT_ORDER_EXHAUSTED));
-        verify(boardRepository, never()).save(any());
-    }
 }

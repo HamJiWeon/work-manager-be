@@ -23,14 +23,12 @@ import work.managerbe.user.repository.UserRepository;
 @Transactional
 public class BoardServiceImpl implements BoardService {
 
-    private static final int SORT_ORDER_INCREMENT = 1;
-
     private final BoardRepository boardRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
 
     /**
-     * 이름과 사용자 존재를 검증하고 프로젝트 잠금 안에서 최대 순서 다음에 보드를 저장한다.
+     * 이름과 사용자 존재를 검증하고 프로젝트 잠금 안에서 보드 목록 끝에 새 보드를 추가한다.
      */
     @Override
     public BoardResponse create(UUID userId, Long projectId, BoardCreateRequest request) {
@@ -41,12 +39,7 @@ public class BoardServiceImpl implements BoardService {
         Project project = projectRepository.findByIdForUpdate(projectId)
                 .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
-        int maximum = boardRepository.findMaxSortOrderByProjectId(projectId);
-        if (maximum == Integer.MAX_VALUE) {
-            throw BoardException.of(BoardErrorCode.BOARD_SORT_ORDER_EXHAUSTED);
-        }
-
-        Board board = Board.create(request.name(), maximum + SORT_ORDER_INCREMENT, project);
+        Board board = project.addBoard(request.name());
         return BoardResponse.from(boardRepository.save(board));
     }
 
