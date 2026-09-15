@@ -16,7 +16,10 @@ public class Board extends BaseEntity {
 
     private String name;
 
-    @Column(insertable = false, updatable = false)
+    /**
+     * 프로젝트 목록이 관리하는 sort_order 컬럼을 같은 이름으로 읽기 전용 매핑한다.
+     */
+    @Column(name = "sort_order", insertable = false, updatable = false)
     private int sortOrder;
 
     @ManyToOne(fetch = FetchType.LAZY)
