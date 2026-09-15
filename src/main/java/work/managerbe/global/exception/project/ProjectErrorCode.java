@@ -1,4 +1,4 @@
-package work.managerbe.global.project;
+package work.managerbe.global.exception.project;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
