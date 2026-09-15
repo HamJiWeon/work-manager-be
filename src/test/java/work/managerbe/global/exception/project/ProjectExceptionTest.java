@@ -1,9 +1,11 @@
-package work.managerbe.global.project;
+package work.managerbe.global.exception.project;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import work.managerbe.global.exception.project.ProjectErrorCode;
+import work.managerbe.global.exception.project.ProjectException;
 
 import java.util.HashMap;
 import java.util.Map;

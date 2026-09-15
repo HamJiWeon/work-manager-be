@@ -24,4 +24,20 @@ class ProjectTest {
         assertThat(project.getDescription()).isEqualTo(description);
         assertThat(project.getNextCardNumber()).isEqualTo(1L);
     }
+
+    @Test
+    @DisplayName("code에서 UUID를 제외한 접두사를 반환한다.")
+    void UUID_제외_접두사_반환() {
+        // given
+        String code = "WORK_550e8400-e29b-41d4-a716-446655440000";
+        String expectedPrefix = "WORK";
+        Project project = Project.create(code, "업무 관리 서비스", null);
+
+        // when
+        String prefix = project.cardPrefix(project.getCode());
+
+        // then
+        assertThat(prefix).isEqualTo(expectedPrefix);
+        assertThat(project.getCode()).isEqualTo(code);
+    }
 }
