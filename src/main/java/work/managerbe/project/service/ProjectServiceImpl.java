@@ -13,7 +13,6 @@ import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.mapper.ProjectMapper;
 import work.managerbe.project.repository.ProjectRepository;
 
-import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -50,7 +49,7 @@ public class ProjectServiceImpl implements ProjectService{
         Project project = projectRepository.findByUser_Id(userId).stream()
                 .filter(a -> a.cardPrefix(a.getCode()).equals(code))
                 .findFirst()
-                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_NAME));
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
         return mapper.toResponse(project);
     }
