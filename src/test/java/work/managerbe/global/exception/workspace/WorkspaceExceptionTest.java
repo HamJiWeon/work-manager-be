@@ -1,7 +1,9 @@
-package work.managerbe.global.user;
+package work.managerbe.global.exception.workspace;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import work.managerbe.global.exception.workspace.WorkspaceErrorCode;
+import work.managerbe.global.exception.workspace.WorkspaceException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -12,27 +14,27 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 오류 코드 계약과 예외 팩터리의 기본값, 원인 보존 및 상세 정보의 방어적 복사를 검증한다.
  */
-class UserExceptionTest {
+class WorkspaceExceptionTest {
 
-    private static final UserErrorCode ERROR_CODE = UserErrorCode.USER_NOT_FOUND;
+    private static final WorkspaceErrorCode ERROR_CODE = WorkspaceErrorCode.WORKSPACE_NOT_FOUND;
 
     @Test
     void 오류_코드의_식별자와_HTTP_상태와_메시지를_제공한다() {
         // given / when / then
-        assertThat(ERROR_CODE.name()).isEqualTo("USER_NOT_FOUND");
-        assertThat(ERROR_CODE.getName()).isEqualTo("USR-001");
+        assertThat(ERROR_CODE.name()).isEqualTo("WORKSPACE_NOT_FOUND");
+        assertThat(ERROR_CODE.getName()).isEqualTo("WSP-001");
         assertThat(ERROR_CODE.getHttpStatus()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(ERROR_CODE.getMessage()).isEqualTo("사용자를 찾을 수 없습니다.");
+        assertThat(ERROR_CODE.getMessage()).isEqualTo("워크스페이스를 찾을 수 없습니다.");
     }
 
     @Test
     void 오류_코드만으로_생성하면_상세정보는_비어있고_원인은_없다() {
         // given / when
-        UserException exception = UserException.of(ERROR_CODE);
+        WorkspaceException exception = WorkspaceException.of(ERROR_CODE);
 
         // then
         assertThat(exception.getErrorCode()).isSameAs(ERROR_CODE);
-        assertThat(exception.getMessage()).isEqualTo("사용자를 찾을 수 없습니다.");
+        assertThat(exception.getMessage()).isEqualTo("워크스페이스를 찾을 수 없습니다.");
         assertThat(exception.getDetails()).isEmpty();
         assertThat(exception.getCause()).isNull();
     }
@@ -43,7 +45,7 @@ class UserExceptionTest {
         Map<String, Object> details = new HashMap<>(Map.of("field", "id"));
 
         // when
-        UserException exception = UserException.of(ERROR_CODE, details);
+        WorkspaceException exception = WorkspaceException.of(ERROR_CODE, details);
         details.put("field", "changed");
 
         // then
@@ -61,11 +63,11 @@ class UserExceptionTest {
         Throwable cause = new IllegalStateException("내부 오류");
 
         // when
-        UserException exception = UserException.of(ERROR_CODE, details, cause);
+        WorkspaceException exception = WorkspaceException.of(ERROR_CODE, details, cause);
 
         // then
         assertThat(exception.getErrorCode()).isSameAs(ERROR_CODE);
-        assertThat(exception.getMessage()).isEqualTo("사용자를 찾을 수 없습니다.");
+        assertThat(exception.getMessage()).isEqualTo("워크스페이스를 찾을 수 없습니다.");
         assertThat(exception.getDetails()).containsExactlyEntriesOf(details);
         assertThat(exception.getCause()).isSameAs(cause);
     }
@@ -73,7 +75,7 @@ class UserExceptionTest {
     @Test
     void null_상세정보는_빈_맵으로_변환한다() {
         // given / when
-        UserException exception = UserException.of(ERROR_CODE, null);
+        WorkspaceException exception = WorkspaceException.of(ERROR_CODE, null);
 
         // then
         assertThat(exception.getDetails()).isEmpty();
@@ -82,7 +84,7 @@ class UserExceptionTest {
     @Test
     void 오류_코드가_null이면_거부한다() {
         // given / when / then
-        assertThatThrownBy(() -> UserException.of(null))
+        assertThatThrownBy(() -> WorkspaceException.of(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("errorCode는 필수입니다.");
     }

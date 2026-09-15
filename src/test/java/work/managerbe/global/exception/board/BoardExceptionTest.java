@@ -1,7 +1,9 @@
-package work.managerbe.global.board;
+package work.managerbe.global.exception.board;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import work.managerbe.global.exception.board.BoardErrorCode;
+import work.managerbe.global.exception.board.BoardException;
 
 import java.util.HashMap;
 import java.util.Map;

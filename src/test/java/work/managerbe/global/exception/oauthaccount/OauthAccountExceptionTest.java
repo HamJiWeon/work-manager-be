@@ -1,7 +1,9 @@
-package work.managerbe.global.oauthaccount;
+package work.managerbe.global.exception.oauthaccount;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import work.managerbe.global.exception.oauthaccount.OauthAccountErrorCode;
+import work.managerbe.global.exception.oauthaccount.OauthAccountException;
 
 import java.util.HashMap;
 import java.util.Map;

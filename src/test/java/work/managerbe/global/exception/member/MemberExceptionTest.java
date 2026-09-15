@@ -1,7 +1,9 @@
-package work.managerbe.global.member;
+package work.managerbe.global.exception.member;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import work.managerbe.global.exception.member.MemberErrorCode;
+import work.managerbe.global.exception.member.MemberException;
 
 import java.util.HashMap;
 import java.util.Map;

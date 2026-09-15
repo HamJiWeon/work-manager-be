@@ -1,4 +1,4 @@
-package work.managerbe.global.oauthaccount;
+package work.managerbe.global.exception.oauthaccount;
 
 import java.util.Map;
 import work.managerbe.global.exception.GlobalException;

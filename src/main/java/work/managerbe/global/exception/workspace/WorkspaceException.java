@@ -1,4 +1,4 @@
-package work.managerbe.global.workspace;
+package work.managerbe.global.exception.workspace;
 
 import java.util.Map;
 import work.managerbe.global.exception.GlobalException;
