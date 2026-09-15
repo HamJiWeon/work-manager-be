@@ -7,6 +7,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
+import work.managerbe.board.dto.BoardCreateRequest;
+import work.managerbe.board.service.BoardService;
+import work.managerbe.user.domain.User;
 import work.managerbe.project.domain.Project;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,11 +32,13 @@ class BoardRepositoryTest {
 
     private final BoardRepository boardRepository;
     private final EntityManager entityManager;
+    private final BoardService boardService;
 
     @Autowired
-    BoardRepositoryTest(BoardRepository boardRepository, EntityManager entityManager) {
+    BoardRepositoryTest(BoardRepository boardRepository, EntityManager entityManager, BoardService boardService) {
         this.boardRepository = boardRepository;
         this.entityManager = entityManager;
+        this.boardService = boardService;
     }
 
     @Test
@@ -75,6 +80,64 @@ class BoardRepositoryTest {
         // then
         assertThat(boardRepository.findById(board.getId())).isEmpty();
         assertThat(entityManager.find(Project.class, project.getId())).isNotNull();
+    }
+
+    @Test
+    void 서비스를_통해_생성하면_순서와_감사_시각이_저장된다() {
+        // given
+        User user = User.create("작성자", "board@example.com", null);
+        Project project = Project.create("SERVICE", "프로젝트", null);
+        entityManager.persist(user);
+        entityManager.persist(project);
+
+        // when
+        var first = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("첫 보드"));
+        var second = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("둘째 보드"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        assertThat(first.sortOrder()).isEqualTo(1);
+        assertThat(second.sortOrder()).isEqualTo(2);
+        assertThat(second.projectId()).isEqualTo(project.getId());
+        assertThat(second.createdAt()).isNotNull();
+        assertThat(second.updatedAt()).isNotNull();
+        Board saved = boardRepository.findById(second.id()).orElseThrow();
+        assertThat(saved.getName()).isEqualTo("둘째 보드");
+        assertThat(saved.getSortOrder()).isEqualTo(2);
+    }
+
+    @Test
+    void 보드가_없는_프로젝트의_최대_순서는_0이다() {
+        // given
+        Project project = Project.create("EMPTY", "빈 프로젝트", null);
+        entityManager.persist(project);
+
+        // when
+        int maximum = boardRepository.findMaxSortOrderByProjectId(project.getId());
+
+        // then
+        assertThat(maximum).isZero();
+    }
+
+    @Test
+    void 다른_프로젝트를_제외하고_보드_개수가_아닌_최대_순서를_조회한다() {
+        // given
+        Project project = Project.create("TARGET", "대상", null);
+        Project other = Project.create("OTHER", "다른 프로젝트", null);
+        entityManager.persist(project);
+        entityManager.persist(other);
+        boardRepository.save(Board.create("첫 보드", 1, project));
+        boardRepository.save(Board.create("마지막 보드", 5, project));
+        boardRepository.save(Board.create("다른 보드", 10, other));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        int maximum = boardRepository.findMaxSortOrderByProjectId(project.getId());
+
+        // then
+        assertThat(maximum).isEqualTo(5);
     }
 
     @Test
