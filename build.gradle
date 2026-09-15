@@ -71,10 +71,28 @@ tasks.named('test', Test) {
 }
 
 /**
+ * QueryDSL과 MapStruct 생성 소스에 대응하는 클래스만 보고서와 검증에서 함께 제외한다.
+ */
+def coverageClasses = providers.provider {
+    def generatedSourceRoot = layout.buildDirectory.dir('generated/sources/annotationProcessor/java/main').get().asFile
+    def generatedClassPatterns = fileTree(generatedSourceRoot).matching {
+        include '**/Q*.java', '**/*MapperImpl.java'
+    }.files.collectMany { generatedSource ->
+        def classPath = generatedSourceRoot.toPath().relativize(generatedSource.toPath())
+                .toString().replace(File.separator, '/').replaceAll(/\.java$/, '')
+        ["${classPath}.class", "${classPath}\$*.class"]
+    }
+    sourceSets.main.output.classesDirs.asFileTree.matching {
+        exclude generatedClassPatterns
+    }
+}
+
+/**
  * 테스트 실행 결과로 Codecov용 XML과 로컬 확인용 HTML 리포트를 생성한다.
  */
 tasks.named('jacocoTestReport', JacocoReport) {
     dependsOn tasks.named('test')
+    classDirectories.setFrom(coverageClasses)
 
     reports {
         xml.required = true
@@ -84,10 +102,11 @@ tasks.named('jacocoTestReport', JacocoReport) {
 }
 
 /**
- * 전체 클래스의 라인 커버리지가 80% 미만이면 검증을 실패시키고 HTML 리포트를 남긴다.
+ * 자동 생성 코드를 제외한 라인 커버리지가 80% 미만이면 검증을 실패시킨다.
  */
 tasks.named('jacocoTestCoverageVerification', JacocoCoverageVerification) {
     dependsOn tasks.named('jacocoTestReport')
+    classDirectories.setFrom(coverageClasses)
 
     violationRules {
         rule {

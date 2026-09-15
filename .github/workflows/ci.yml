@@ -56,7 +56,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: >-
-          ${{ !cancelled()
+          ${{ (success() || failure())
             && hashFiles('build/reports/jacoco/test/jacocoTestReport.xml') != ''
             && (github.event_name != 'pull_request'
               || github.event.pull_request.head.repo.full_name == github.repository) }}
