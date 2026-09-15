@@ -2,8 +2,6 @@ package work.managerbe.global.exception.card;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import work.managerbe.global.exception.card.CardErrorCode;
-import work.managerbe.global.exception.card.CardException;
 
 import java.util.HashMap;
 import java.util.Map;

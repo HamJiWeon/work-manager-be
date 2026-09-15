@@ -2,8 +2,6 @@ package work.managerbe.global.exception.workspace;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import work.managerbe.global.exception.workspace.WorkspaceErrorCode;
-import work.managerbe.global.exception.workspace.WorkspaceException;
 
 import java.util.HashMap;
 import java.util.Map;

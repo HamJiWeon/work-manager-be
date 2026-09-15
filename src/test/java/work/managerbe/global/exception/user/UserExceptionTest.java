@@ -2,8 +2,6 @@ package work.managerbe.global.exception.user;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import work.managerbe.global.exception.user.UserErrorCode;
-import work.managerbe.global.exception.user.UserException;
 
 import java.util.HashMap;
 import java.util.Map;
