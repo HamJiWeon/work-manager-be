@@ -24,7 +24,7 @@ class CardTest {
     @Test
     void 전달한_속성과_연관_엔티티로_카드를_생성한다() {
         // given
-        Project project = Project.create("TEST", "테스트 프로젝트", null);
+        Project project = Project.create(User.create("생성자", "creator@example.com", null), "TEST", "테스트 프로젝트", null);
         User user = User.create(USERNAME, "test@example.com", null);
         Member member = Member.create(user, project, "MEMBER");
         Board board = Board.create("진행 중", project);
@@ -49,7 +49,7 @@ class CardTest {
     @Test
     void 일정이_없는_카드를_생성한다() {
         // given
-        Project project = Project.create("TEST", "테스트 프로젝트", null);
+        Project project = Project.create(User.create("생성자", "creator@example.com", null), "TEST", "테스트 프로젝트", null);
         User user = User.create(USERNAME, "test@example.com", null);
         Member member = Member.create(user, project, "MEMBER");
         Board board = Board.create("진행 중", project);

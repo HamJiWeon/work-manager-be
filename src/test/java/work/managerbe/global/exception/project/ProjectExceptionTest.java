@@ -37,7 +37,7 @@ class ProjectExceptionTest {
 
         // then
         assertThat(exception.getErrorCode()).isSameAs(errorCode);
-        assertThat(errorCode.getName()).isEqualTo("PJT-003");
+        assertThat(errorCode.getName()).isEqualTo("PJT-004");
         assertThat(errorCode.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
     }
 

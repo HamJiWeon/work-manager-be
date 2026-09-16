@@ -17,7 +17,7 @@ class MemberTest {
     void 사용자와_프로젝트와_역할로_멤버를_생성한다() {
         // given
         User user = User.create("참여자", "member@example.com", null);
-        Project project = Project.create("TEST", "테스트 프로젝트", null);
+        Project project = Project.create(User.create("생성자", "creator@example.com", null), "TEST", "테스트 프로젝트", null);
 
         // when
         Member member = Member.create(user, project, ROLE);

@@ -1,5 +1,6 @@
 package work.managerbe.workspace.mapper;
 
+import work.managerbe.user.domain.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -65,7 +66,7 @@ class WorkspaceMapperTest {
         @DisplayName("저장 전 프로젝트의 ID는 null로 변환한다.")
         void 프로젝트_ID가_없으면_null_반환() {
             // given
-            Project newProject = Project.create("WORK_test", "업무 관리", "설명");
+            Project newProject = Project.create(User.create("생성자", "creator@example.com", null), "WORK_test", "업무 관리", "설명");
             Workspace newWorkspace = Workspace.create(newProject, "회의록", "회의 내용");
 
             // when

@@ -32,6 +32,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+/**
+ * 생성자별 코드 중복 검사, 생성자와 OWNER 저장 및 입력 검증을 검증한다.
+ */
 @ExtendWith(MockitoExtension.class)
 class ProjectServiceImplTest {
 
@@ -61,7 +64,7 @@ class ProjectServiceImplTest {
         void 존재하지_않는_사용자는_프로젝트를_생성할_수_없다() {
             // given
             UUID userId = UUID.randomUUID();
-            ProjectCreateRequest request = new ProjectCreateRequest("업무 관리", "WORK", null);
+            ProjectCreateRequest request = new ProjectCreateRequest("WORK", "업무 관리", null);
             when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
             // when
@@ -79,7 +82,7 @@ class ProjectServiceImplTest {
         @Test
         void 사용자_ID가_없으면_프로젝트를_생성할_수_없다() {
             // given
-            ProjectCreateRequest request = new ProjectCreateRequest("업무 관리", "WORK", null);
+            ProjectCreateRequest request = new ProjectCreateRequest("WORK", "업무 관리", null);
 
             // when
             UserException exception = assertThrows(UserException.class,
@@ -91,20 +94,20 @@ class ProjectServiceImplTest {
         }
 
         @Test
-        @DisplayName("중복이 없으면 카드 접두사를 대문자로 변환하고 UUID를 붙여 저장한다.")
+        @DisplayName("중복이 없으면 코드를 대문자로 변환하고 생성자와 함께 저장한다.")
         void 프로젝트_생성() {
             // given
-            String prefix = "work";
+            String inputCode = "work";
             UUID userId = UUID.randomUUID();
             ProjectCreateRequest request =
-                    new ProjectCreateRequest("업무 관리", prefix, "프로젝트 설명");
+                    new ProjectCreateRequest(inputCode, "업무 관리", "프로젝트 설명");
 
             Project savedProject = mock(Project.class);
             User creator = User.create("생성자", "creator@example.com", null);
             when(userRepository.findById(userId)).thenReturn(Optional.of(creator));
             ProjectResponse expectedResponse = mock(ProjectResponse.class);
 
-            when(projectRepository.findByUser_Id(userId)).thenReturn(List.of());
+            when(projectRepository.existsByCreator_IdAndCode(userId, "WORK")).thenReturn(false);
             when(projectRepository.save(any(Project.class)))
                     .thenReturn(savedProject);
             when(mapper.toResponse(savedProject))
@@ -116,14 +119,14 @@ class ProjectServiceImplTest {
             ArgumentCaptor<Project> captor =
                     ArgumentCaptor.forClass(Project.class);
 
-            verify(projectRepository).findByUser_Id(userId);
+            verify(projectRepository).existsByCreator_IdAndCode(userId, "WORK");
             verify(projectRepository).save(captor.capture());
 
             Project project = captor.getValue();
 
-            assertThat(project.getCode()).matches(
-                    "^WORK_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-            );
+            assertThat(project.getCode()).isEqualTo("WORK");
+            assertThat(project.getCreator()).isSameAs(creator);
+            verify(projectRepository, never()).findByUser_Id(any());
             assertThat(project.getName()).isEqualTo(request.name());
             assertThat(project.getDescription()).isEqualTo(request.description());
             assertThat(response).isSameAs(expectedResponse);
@@ -138,17 +141,15 @@ class ProjectServiceImplTest {
         }
 
         @Test
-        @DisplayName("사용자의 기존 접두사와 대소문자 구분 없이 중복되면 저장하지 않는다.")
-        void 사용자_접두사_중복() {
+        @DisplayName("사용자의 기존 코드와 대소문자 구분 없이 중복되면 저장하지 않는다.")
+        void 사용자_코드_중복() {
             // given
-            String prefix = "work";
+            String inputCode = "work";
             UUID userId = UUID.randomUUID();
-            ProjectCreateRequest request = new ProjectCreateRequest("업무 관리", prefix, null);
-            Project other = Project.create("TASK_" + UUID.randomUUID(), "다른 프로젝트", null);
-            Project existing = Project.create("WORK_" + UUID.randomUUID(), "기존 프로젝트", null);
+            ProjectCreateRequest request = new ProjectCreateRequest(inputCode, "업무 관리", null);
             User creator = User.create("생성자", "creator@example.com", null);
             when(userRepository.findById(userId)).thenReturn(Optional.of(creator));
-            when(projectRepository.findByUser_Id(userId)).thenReturn(List.of(other, existing));
+            when(projectRepository.existsByCreator_IdAndCode(userId, "WORK")).thenReturn(true);
 
             // when
             ProjectException exception = assertThrows(
@@ -158,43 +159,42 @@ class ProjectServiceImplTest {
 
             // then
             assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_DUPLICATE_PREFIX);
-            verify(projectRepository).findByUser_Id(userId);
+            verify(projectRepository).existsByCreator_IdAndCode(userId, "WORK");
             verify(projectRepository, never()).save(any(Project.class));
+            verifyNoInteractions(memberRepository, mapper);
+        }
+
+        /**
+         * OWNER 저장 실패를 삼키지 않고 호출자에게 전달해 트랜잭션 롤백이 가능하도록 한다.
+         */
+        @Test
+        void OWNER_저장이_실패하면_성공_응답을_반환하지_않는다() {
+            // given
+            User creator = User.create("생성자", "creator@example.com", null);
+            UUID userId = UUID.randomUUID();
+            ProjectCreateRequest request = new ProjectCreateRequest("WORK", "업무 관리", null);
+            Project savedProject = mock(Project.class);
+            IllegalStateException failure = new IllegalStateException("멤버 저장 실패");
+            when(userRepository.findById(userId)).thenReturn(Optional.of(creator));
+            when(projectRepository.save(any(Project.class))).thenReturn(savedProject);
+            when(memberRepository.save(any(Member.class))).thenThrow(failure);
+
+            // when
+            IllegalStateException exception = assertThrows(IllegalStateException.class,
+                    () -> projectService.create(userId, request));
+
+            // then
+            assertThat(exception).isSameAs(failure);
             verifyNoInteractions(mapper);
         }
 
         @Test
-        @DisplayName("사용자의 기존 접두사와 일부만 일치하면 생성할 수 있다.")
-        void 다른_접두사로_프로젝트_생성() {
-            // given
-            UUID userId = UUID.randomUUID();
-            ProjectCreateRequest request = new ProjectCreateRequest("업무 관리", "WORK", null);
-            Project existing = Project.create("WORKFLOW_" + UUID.randomUUID(), "기존 프로젝트", null);
-            Project savedProject = mock(Project.class);
-            ProjectResponse expectedResponse = mock(ProjectResponse.class);
-            User creator = User.create("생성자", "creator@example.com", null);
-            when(userRepository.findById(userId)).thenReturn(Optional.of(creator));
-            when(projectRepository.findByUser_Id(userId)).thenReturn(List.of(existing));
-            when(projectRepository.save(any(Project.class))).thenReturn(savedProject);
-            when(mapper.toResponse(savedProject)).thenReturn(expectedResponse);
-
-            // when
-            ProjectResponse response = projectService.create(userId, request);
-
-            // then
-            assertThat(response).isSameAs(expectedResponse);
-            verify(projectRepository).findByUser_Id(userId);
-            verify(projectRepository).save(any(Project.class));
-            verify(mapper).toResponse(savedProject);
-        }
-
-        @Test
-        @DisplayName("카드 접두사에 밑줄이 포함되면 예외가 발생한다.")
-        void 카드접두사_밑줄_포함() {
+        @DisplayName("프로젝트 코드에 밑줄이 포함되면 예외가 발생한다.")
+        void 프로젝트코드_밑줄_포함() {
             // given
             UUID userId = UUID.randomUUID();
             ProjectCreateRequest request =
-                    new ProjectCreateRequest("업무 관리", "WORK_TASK", "프로젝트 설명");
+                    new ProjectCreateRequest("WORK_TASK", "업무 관리", "프로젝트 설명");
 
             // when
             ProjectException exception = assertThrows(
@@ -215,7 +215,7 @@ class ProjectServiceImplTest {
             // given
             UUID userId = UUID.randomUUID();
             ProjectCreateRequest request =
-                    new ProjectCreateRequest(null, "WORK", "프로젝트 설명");
+                    new ProjectCreateRequest("WORK", null, "프로젝트 설명");
 
             // when
             ProjectException exception = assertThrows(
@@ -225,18 +225,18 @@ class ProjectServiceImplTest {
 
             // then
             assertThat(exception.getErrorCode())
-                    .isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
+                    .isEqualTo(ProjectErrorCode.PROJECT_INVALID_NAME);
 
             verifyNoInteractions(projectRepository, mapper);
         }
 
         @Test
-        @DisplayName("카드 접두사가 공백이면 예외가 발생한다.")
-        void 카드접두사_공백() {
+        @DisplayName("프로젝트 코드가 공백이면 예외가 발생한다.")
+        void 프로젝트코드_공백() {
             // given
             UUID userId = UUID.randomUUID();
             ProjectCreateRequest request =
-                    new ProjectCreateRequest("업무 관리", "   ", "프로젝트 설명");
+                    new ProjectCreateRequest("   ", "업무 관리", "프로젝트 설명");
 
             // when
             ProjectException exception = assertThrows(
@@ -246,18 +246,18 @@ class ProjectServiceImplTest {
 
             // then
             assertThat(exception.getErrorCode())
-                    .isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
+                    .isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE);
 
             verifyNoInteractions(projectRepository, mapper);
         }
 
         @Test
-        @DisplayName("카드 접두사가 null이면 예외가 발생한다.")
-        void 카드접두사_누락() {
+        @DisplayName("프로젝트 코드가 null이면 예외가 발생한다.")
+        void 프로젝트코드_누락() {
             // given
             UUID userId = UUID.randomUUID();
             ProjectCreateRequest request =
-                    new ProjectCreateRequest("업무 관리", null, "프로젝트 설명");
+                    new ProjectCreateRequest(null, "업무 관리", "프로젝트 설명");
 
             // when
             ProjectException exception = assertThrows(
@@ -267,7 +267,7 @@ class ProjectServiceImplTest {
 
             // then
             assertThat(exception.getErrorCode())
-                    .isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
+                    .isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE);
 
             verifyNoInteractions(projectRepository, mapper);
         }
@@ -278,7 +278,7 @@ class ProjectServiceImplTest {
             // given
             UUID userId = UUID.randomUUID();
             ProjectCreateRequest request =
-                    new ProjectCreateRequest("   ", "WORK", "프로젝트 설명");
+                    new ProjectCreateRequest("WORK", "   ", "프로젝트 설명");
 
             // when
             ProjectException exception = assertThrows(
@@ -288,7 +288,7 @@ class ProjectServiceImplTest {
 
             // then
             assertThat(exception.getErrorCode())
-                    .isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
+                    .isEqualTo(ProjectErrorCode.PROJECT_INVALID_NAME);
 
             verifyNoInteractions(projectRepository, mapper);
         }
@@ -298,12 +298,12 @@ class ProjectServiceImplTest {
     @DisplayName("get")
     class Get {
         @Test
-        @DisplayName("사용자의 프로젝트 중 접두사가 정확히 일치하는 프로젝트를 반환한다.")
+        @DisplayName("사용자의 프로젝트 중 코드가 정확히 일치하는 프로젝트를 반환한다.")
         void 프로젝트_단건_조회() {
             // given
             UUID userId = UUID.randomUUID();
-            Project other = Project.create("WORKFLOW_550e8400-e29b-41d4-a716-446655440000", "다른 프로젝트", null);
-            Project project = Project.create("WORK_123e4567-e89b-12d3-a456-426614174000", "업무 관리", null);
+            Project other = Project.create(User.create("생성자", "creator@example.com", null), "WORKFLOW", "다른 프로젝트", null);
+            Project project = Project.create(User.create("생성자", "creator@example.com", null), "WORK", "업무 관리", null);
             ProjectResponse expectedResponse = mock(ProjectResponse.class);
             when(projectRepository.findByUser_Id(userId)).thenReturn(List.of(other, project));
             when(mapper.toResponse(project)).thenReturn(expectedResponse);
@@ -319,11 +319,11 @@ class ProjectServiceImplTest {
         }
 
         @Test
-        @DisplayName("일치하는 접두사가 없으면 프로젝트를 찾을 수 없다는 예외가 발생한다.")
-        void 조회할_접두사가_없음() {
+        @DisplayName("일치하는 코드가 없으면 프로젝트를 찾을 수 없다는 예외가 발생한다.")
+        void 조회할_코드가_없음() {
             // given
             UUID userId = UUID.randomUUID();
-            Project project = Project.create("WORKFLOW_550e8400-e29b-41d4-a716-446655440000", "다른 프로젝트", null);
+            Project project = Project.create(User.create("생성자", "creator@example.com", null), "WORKFLOW", "다른 프로젝트", null);
             when(projectRepository.findByUser_Id(userId)).thenReturn(List.of(project));
 
             // when
@@ -356,8 +356,8 @@ class ProjectServiceImplTest {
         }
 
         @Test
-        @DisplayName("조회할 접두사가 null이면 예외가 발생한다.")
-        void 조회_접두사_누락() {
+        @DisplayName("조회할 코드가 null이면 예외가 발생한다.")
+        void 조회_코드_누락() {
             // given
             UUID userId = UUID.randomUUID();
 
@@ -368,13 +368,13 @@ class ProjectServiceImplTest {
             );
 
             // then
-            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE);
             verifyNoInteractions(projectRepository, mapper);
         }
 
         @Test
-        @DisplayName("조회할 접두사가 공백이면 예외가 발생한다.")
-        void 조회_접두사_공백() {
+        @DisplayName("조회할 코드가 공백이면 예외가 발생한다.")
+        void 조회_코드_공백() {
             // given
             UUID userId = UUID.randomUUID();
 
@@ -385,7 +385,7 @@ class ProjectServiceImplTest {
             );
 
             // then
-            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE);
             verifyNoInteractions(projectRepository, mapper);
         }
 

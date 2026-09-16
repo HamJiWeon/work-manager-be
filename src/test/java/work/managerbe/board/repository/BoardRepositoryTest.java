@@ -56,7 +56,7 @@ class BoardRepositoryTest {
         User creator = User.create("생성자", "creator@example.com", null);
         entityManager.persist(creator);
         var project = projectService.create(creator.getId(),
-                new ProjectCreateRequest("프로젝트", "CREATOR", null));
+                new ProjectCreateRequest("CREATOR", "프로젝트", null));
         entityManager.flush();
         entityManager.clear();
 
@@ -75,6 +75,8 @@ class BoardRepositoryTest {
                 .setParameter("projectId", project.id())
                 .getSingleResult();
         assertThat(member.getRole()).isEqualTo("OWNER");
+        assertThat(entityManager.find(Project.class, project.id()).getCreator().getId())
+                .isEqualTo(creator.getId());
         assertThat(member.getJoinedAt()).isNotNull();
         assertThat(member.getLeftAt()).isNull();
     }
@@ -82,7 +84,7 @@ class BoardRepositoryTest {
     @Test
     void 저장한_보드를_프로젝트와_감사_시각을_포함해_조회한다() {
         // given
-        Project project = Project.create("TEST", "테스트 프로젝트", null);
+        Project project = Project.create(creator(), "TEST", "테스트 프로젝트", null);
         entityManager.persist(project);
         Board board = project.addBoard(BOARD_NAME);
 
@@ -105,7 +107,7 @@ class BoardRepositoryTest {
     @Test
     void 보드를_삭제하면_조회되지_않고_프로젝트는_유지된다() {
         // given
-        Project project = Project.create("TEST", "테스트 프로젝트", null);
+        Project project = Project.create(creator(), "TEST", "테스트 프로젝트", null);
         entityManager.persist(project);
         Board board = boardRepository.saveAndFlush(project.addBoard(BOARD_NAME));
         entityManager.clear();
@@ -127,7 +129,7 @@ class BoardRepositoryTest {
     void 서비스를_통해_생성하면_순서와_감사_시각이_저장된다() {
         // given
         User user = User.create("작성자", "board@example.com", null);
-        Project project = Project.create("SERVICE", "프로젝트", null);
+        Project project = Project.create(creator(), "SERVICE", "프로젝트", null);
         entityManager.persist(user);
         entityManager.persist(project);
         entityManager.persist(Member.create(user, project, "MEMBER"));
@@ -180,7 +182,7 @@ class BoardRepositoryTest {
     @Test
     void 팩터리로_직접_생성한_보드도_목록_순서대로_저장된다() {
         // given
-        Project project = Project.create("FACTORY", "팩터리", null);
+        Project project = Project.create(creator(), "FACTORY", "팩터리", null);
         entityManager.persist(project);
         Board first = Board.create("첫 보드", project);
         Board second = project.addBoard("둘째 보드");
@@ -207,8 +209,8 @@ class BoardRepositoryTest {
         // given
         User user = User.create("요청자", "outsider@example.com", null);
         User member = User.create("멤버", "member@example.com", null);
-        Project target = Project.create("TARGET", "대상", null);
-        Project other = Project.create("OTHER", "다른 프로젝트", null);
+        Project target = Project.create(creator(), "TARGET", "대상", null);
+        Project other = Project.create(creator(), "OTHER", "다른 프로젝트", null);
         entityManager.persist(user);
         entityManager.persist(member);
         entityManager.persist(target);
@@ -231,7 +233,7 @@ class BoardRepositoryTest {
     void 탈퇴한_멤버는_보드_생성을_거절한다() {
         // given
         User user = User.create("탈퇴자", "left@example.com", null);
-        Project project = Project.create("LEFT", "탈퇴한 프로젝트", null);
+        Project project = Project.create(creator(), "LEFT", "탈퇴한 프로젝트", null);
         entityManager.persist(user);
         entityManager.persist(project);
         Member member = Member.create(user, project, "MEMBER");
@@ -244,5 +246,14 @@ class BoardRepositoryTest {
         assertThatThrownBy(() -> boardService.create(user.getId(), project.getId(), new BoardCreateRequest("보드")))
                 .isInstanceOf(AccessDeniedException.class);
         assertThat(boardRepository.count()).isZero();
+    }
+
+    /**
+     * 프로젝트의 필수 생성자 관계를 위한 사용자를 저장한다.
+     */
+    private User creator() {
+        User creator = User.create("생성자", "creator@example.com", null);
+        entityManager.persist(creator);
+        return creator;
     }
 }

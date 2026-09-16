@@ -53,10 +53,10 @@ class ProjectControllerTest {
             // given
             UUID userId = UUID.randomUUID();
             ProjectCreateRequest request =
-                    new ProjectCreateRequest("업무 관리", "WORK", "프로젝트 설명");
+                    new ProjectCreateRequest("WORK", "업무 관리", "프로젝트 설명");
 
             ProjectResponse response = new ProjectResponse(
-                    1L, request.cardPrefix() + "_" + UUID.randomUUID(),
+                    1L, request.code(),
                     request.name(), 1L, request.description(),
                     LocalDateTime.now(), LocalDateTime.now()
             );
@@ -83,17 +83,17 @@ class ProjectControllerTest {
             // given
             UUID userId = UUID.randomUUID();
             ProjectCreateRequest request =
-                    new ProjectCreateRequest(null, "WORK", "프로젝트 설명");
+                    new ProjectCreateRequest("WORK", null, "프로젝트 설명");
 
             when(projectService.create(userId, request))
-                    .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_NAME));
+                    .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_INVALID_NAME));
 
             // when & then
             mockMvc.perform(post("/{userId}/projects", userId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.code").value("PROJECT_INVALID_CODE_NAME"));
+                    .andExpect(jsonPath("$.code").value("PROJECT_INVALID_NAME"));
 
             verify(projectService).create(userId, request);
         }
@@ -141,7 +141,7 @@ class ProjectControllerTest {
             UUID userId = UUID.randomUUID();
             String code = "WORK";
             ProjectResponse response = new ProjectResponse(
-                    1L, "WORK_550e8400-e29b-41d4-a716-446655440000",
+                    1L, "WORK",
                     "업무 관리", 1L, "프로젝트 설명",
                     LocalDateTime.now(), LocalDateTime.now()
             );
