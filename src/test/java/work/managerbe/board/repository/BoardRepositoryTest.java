@@ -82,6 +82,9 @@ class BoardRepositoryTest {
         assertThat(entityManager.find(Project.class, project.getId())).isNotNull();
     }
 
+    /**
+     * 컨텍스트를 비운 뒤 목록과 각 보드의 순서를 확인해 DB 기본값에 머무르지 않는지 검증한다.
+     */
     @Test
     void 서비스를_통해_생성하면_순서와_감사_시각이_저장된다() {
         // given
@@ -107,12 +110,16 @@ class BoardRepositoryTest {
         assertThat(saved.getSortOrder()).isEqualTo(1);
         Project loaded = entityManager.find(Project.class, project.getId());
         assertThat(loaded.getBoards()).extracting(Board::getName).containsExactly("첫 보드", "둘째 보드");
+        assertThat(loaded.getBoards()).extracting(Board::getSortOrder).containsExactly(0, 1);
         var third = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("셋째 보드"));
         entityManager.flush();
         entityManager.clear();
         assertThat(third.sortOrder()).isEqualTo(2);
+        assertThat(boardRepository.findById(third.id()).orElseThrow().getSortOrder()).isEqualTo(2);
         assertThat(entityManager.find(Project.class, project.getId()).getBoards())
-                .extracting(Board::getName).containsExactly("첫 보드", "둘째 보드", "셋째 보드");;
+                .extracting(Board::getName).containsExactly("첫 보드", "둘째 보드", "셋째 보드");
+        assertThat(entityManager.find(Project.class, project.getId()).getBoards())
+                .extracting(Board::getSortOrder).containsExactly(0, 1, 2);
     }
 
     @Test

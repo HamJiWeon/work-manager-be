@@ -32,6 +32,10 @@ public class Project extends BaseEntity {
 
     private String description;
 
+    /**
+     * 양방향 일대다 목록의 인덱스를 Hibernate가 sort_order에 기록한다.
+     * 보드 추가 시 목록과 Board.project를 함께 설정해 순서 갱신을 보장한다.
+     */
     @OneToMany(mappedBy = "project")
     @OrderColumn(name = "sort_order")
     private List<Board> boards = new ArrayList<>();

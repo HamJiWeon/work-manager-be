@@ -22,7 +22,7 @@ public class BoardController {
      */
     @PostMapping
     public ResponseEntity<BoardResponse> create(
-            @PathVariable UUID userId, @PathVariable Long projectId,
+            @PathVariable("userId") UUID userId, @PathVariable("projectId") Long projectId,
             @Valid @RequestBody BoardCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(boardService.create(userId, projectId, request));
