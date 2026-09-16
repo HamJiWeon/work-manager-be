@@ -20,8 +20,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
-import work.managerbe.global.project.ProjectErrorCode;
-import work.managerbe.global.project.ProjectException;
+import work.managerbe.global.exception.project.ProjectErrorCode;
+import work.managerbe.global.exception.project.ProjectException;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;

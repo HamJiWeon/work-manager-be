@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface ProjectService {
 
     ProjectResponse create(UUID userId, ProjectCreateRequest request);
+
+    ProjectResponse get(UUID userId, String code);
 }

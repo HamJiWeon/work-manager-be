@@ -14,8 +14,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardResponse;
 import work.managerbe.board.service.BoardService;
-import work.managerbe.global.project.ProjectErrorCode;
-import work.managerbe.global.project.ProjectException;
+import work.managerbe.global.exception.project.ProjectErrorCode;
+import work.managerbe.global.exception.project.ProjectException;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;

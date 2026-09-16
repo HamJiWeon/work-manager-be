@@ -7,6 +7,8 @@ public final class ApiPaths {
 
     public static final String USER_BASE = "/{userId}";
 
+    public static final String PRJ_CODE = "/{code}";
+
     private ApiPaths() {
     }
 }

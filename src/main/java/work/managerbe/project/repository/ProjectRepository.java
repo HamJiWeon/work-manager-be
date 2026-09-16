@@ -1,7 +1,9 @@
 package work.managerbe.project.repository;
 
 import jakarta.persistence.LockModeType;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -15,4 +17,16 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Project p where p.id = :projectId")
     Optional<Project> findByIdForUpdate(@Param("projectId") Long projectId);
+
+    /**
+     * 탈퇴하지 않은 멤버의 프로젝트를 프로젝트 ID 순서로 조회한다.
+     */
+    @Query("""
+        select m.project
+        from Member m
+        where m.user.id = :userId
+          and m.leftAt is null
+        order by m.project.id asc
+        """)
+    List<Project> findByUser_Id(@Param("userId") UUID userId);
 }

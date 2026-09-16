@@ -72,4 +72,9 @@ public class Project extends BaseEntity {
                 .description(description)
                 .build();
     }
+
+    public String cardPrefix(String code) {
+        String[] prefix = code.split("_");
+        return prefix[0];
+    }
 }
