@@ -1,13 +1,20 @@
 package work.managerbe.board.repository;
 
 import jakarta.persistence.EntityManager;
+import work.managerbe.member.domain.Member;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.DataIntegrityViolationException;
+import jakarta.persistence.PersistenceException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
+import work.managerbe.board.dto.BoardCreateRequest;
+import work.managerbe.board.service.BoardService;
+import work.managerbe.user.domain.User;
 import work.managerbe.project.domain.Project;
+import work.managerbe.project.service.ProjectService;
+import work.managerbe.project.dto.request.ProjectCreateRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -25,15 +32,51 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class BoardRepositoryTest {
 
     private static final String BOARD_NAME = "진행 중";
-    private static final int SORT_ORDER = 2;
 
     private final BoardRepository boardRepository;
     private final EntityManager entityManager;
+    private final BoardService boardService;
+    private final ProjectService projectService;
 
     @Autowired
-    BoardRepositoryTest(BoardRepository boardRepository, EntityManager entityManager) {
+    BoardRepositoryTest(BoardRepository boardRepository, EntityManager entityManager, BoardService boardService,
+                        ProjectService projectService) {
         this.boardRepository = boardRepository;
         this.entityManager = entityManager;
+        this.boardService = boardService;
+        this.projectService = projectService;
+    }
+
+    /**
+     * 프로젝트 생성 서비스가 등록한 활성 멤버로 별도 가입 없이 첫 보드를 저장할 수 있는지 검증한다.
+     */
+    @Test
+    void 프로젝트_생성자는_즉시_보드를_생성할_수_있다() {
+        // given
+        User creator = User.create("생성자", "creator@example.com", null);
+        entityManager.persist(creator);
+        var project = projectService.create(creator.getId(),
+                new ProjectCreateRequest("프로젝트", "CREATOR", null));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        var board = boardService.create(creator.getId(), project.id(), new BoardCreateRequest(BOARD_NAME));
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        assertThat(boardRepository.findById(board.id())).isPresent();
+        assertThat(board.projectId()).isEqualTo(project.id());
+        assertThat(board.sortOrder()).isZero();
+        Member member = entityManager.createQuery(
+                        "select m from Member m where m.user.id = :userId and m.project.id = :projectId", Member.class)
+                .setParameter("userId", creator.getId())
+                .setParameter("projectId", project.id())
+                .getSingleResult();
+        assertThat(member.getRole()).isEqualTo("OWNER");
+        assertThat(member.getJoinedAt()).isNotNull();
+        assertThat(member.getLeftAt()).isNull();
     }
 
     @Test
@@ -41,7 +84,7 @@ class BoardRepositoryTest {
         // given
         Project project = Project.create("TEST", "테스트 프로젝트", null);
         entityManager.persist(project);
-        Board board = Board.create(BOARD_NAME, SORT_ORDER, project);
+        Board board = project.addBoard(BOARD_NAME);
 
         // when
         Board saved = boardRepository.saveAndFlush(board);
@@ -52,7 +95,7 @@ class BoardRepositoryTest {
         assertThat(found).isNotSameAs(saved);
         assertThat(found.getId()).isEqualTo(saved.getId());
         assertThat(found.getName()).isEqualTo(BOARD_NAME);
-        assertThat(found.getSortOrder()).isEqualTo(SORT_ORDER);
+        assertThat(found.getSortOrder()).isZero();
         assertThat(found.getProject().getId()).isEqualTo(project.getId());
         assertThat(found.getProject().getName()).isEqualTo(project.getName());
         assertThat(found.getCreatedAt()).isNotNull();
@@ -64,7 +107,7 @@ class BoardRepositoryTest {
         // given
         Project project = Project.create("TEST", "테스트 프로젝트", null);
         entityManager.persist(project);
-        Board board = boardRepository.saveAndFlush(Board.create(BOARD_NAME, SORT_ORDER, project));
+        Board board = boardRepository.saveAndFlush(project.addBoard(BOARD_NAME));
         entityManager.clear();
 
         // when
@@ -77,13 +120,129 @@ class BoardRepositoryTest {
         assertThat(entityManager.find(Project.class, project.getId())).isNotNull();
     }
 
+    /**
+     * 컨텍스트를 비운 뒤 목록과 각 보드의 순서를 확인해 DB 기본값에 머무르지 않는지 검증한다.
+     */
+    @Test
+    void 서비스를_통해_생성하면_순서와_감사_시각이_저장된다() {
+        // given
+        User user = User.create("작성자", "board@example.com", null);
+        Project project = Project.create("SERVICE", "프로젝트", null);
+        entityManager.persist(user);
+        entityManager.persist(project);
+        entityManager.persist(Member.create(user, project, "MEMBER"));
+
+        // when
+        var first = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("첫 보드"));
+        var second = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("둘째 보드"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        assertThat(first.sortOrder()).isZero();
+        assertThat(second.sortOrder()).isEqualTo(1);
+        assertThat(second.projectId()).isEqualTo(project.getId());
+        assertThat(second.createdAt()).isNotNull();
+        assertThat(second.updatedAt()).isNotNull();
+        Board saved = boardRepository.findById(second.id()).orElseThrow();
+        assertThat(saved.getName()).isEqualTo("둘째 보드");
+        assertThat(saved.getSortOrder()).isEqualTo(1);
+        Project loaded = entityManager.find(Project.class, project.getId());
+        assertThat(loaded.getBoards()).extracting(Board::getName).containsExactly("첫 보드", "둘째 보드");
+        assertThat(loaded.getBoards()).extracting(Board::getSortOrder).containsExactly(0, 1);
+        var third = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("셋째 보드"));
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(third.sortOrder()).isEqualTo(2);
+        assertThat(boardRepository.findById(third.id()).orElseThrow().getSortOrder()).isEqualTo(2);
+        assertThat(entityManager.find(Project.class, project.getId()).getBoards())
+                .extracting(Board::getName).containsExactly("첫 보드", "둘째 보드", "셋째 보드");
+        assertThat(entityManager.find(Project.class, project.getId()).getBoards())
+                .extracting(Board::getSortOrder).containsExactly(0, 1, 2);
+    }
+
     @Test
     void 프로젝트가_없는_보드는_저장할_수_없다() {
         // given
-        Board board = Board.create(BOARD_NAME, SORT_ORDER, null);
+        String insertWithoutProject = """
+                INSERT INTO boards (name, sort_order, created_at, updated_at)
+                VALUES ('보드', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """;
 
         // when / then
-        assertThatThrownBy(() -> boardRepository.saveAndFlush(board))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> entityManager.createNativeQuery(insertWithoutProject).executeUpdate())
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    /**
+     * 팩터리 직접 호출과 프로젝트 생성 API를 섞어도 DB 순서와 목록이 일치하는지 검증한다.
+     */
+    @Test
+    void 팩터리로_직접_생성한_보드도_목록_순서대로_저장된다() {
+        // given
+        Project project = Project.create("FACTORY", "팩터리", null);
+        entityManager.persist(project);
+        Board first = Board.create("첫 보드", project);
+        Board second = project.addBoard("둘째 보드");
+        Board third = Board.create("셋째 보드", project);
+
+        // when
+        boardRepository.save(first);
+        boardRepository.save(second);
+        boardRepository.saveAndFlush(third);
+        entityManager.clear();
+
+        // then
+        assertThat(boardRepository.findById(second.getId()).orElseThrow().getSortOrder()).isEqualTo(1);
+        assertThat(boardRepository.findById(third.getId()).orElseThrow().getSortOrder()).isEqualTo(2);
+        assertThat(entityManager.find(Project.class, project.getId()).getBoards())
+                .extracting(Board::getId).containsExactly(first.getId(), second.getId(), third.getId());
+    }
+
+    /**
+     * 다른 프로젝트의 활성 멤버이거나 다른 사용자가 대상 프로젝트 멤버여도 생성할 수 없다.
+     */
+    @Test
+    void 대상_프로젝트에_참여하지_않은_사용자는_생성을_거절한다() {
+        // given
+        User user = User.create("요청자", "outsider@example.com", null);
+        User member = User.create("멤버", "member@example.com", null);
+        Project target = Project.create("TARGET", "대상", null);
+        Project other = Project.create("OTHER", "다른 프로젝트", null);
+        entityManager.persist(user);
+        entityManager.persist(member);
+        entityManager.persist(target);
+        entityManager.persist(other);
+        entityManager.persist(Member.create(user, other, "MEMBER"));
+        entityManager.persist(Member.create(member, target, "MEMBER"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when / then
+        assertThatThrownBy(() -> boardService.create(user.getId(), target.getId(), new BoardCreateRequest("보드")))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThat(boardRepository.count()).isZero();
+    }
+
+    /**
+     * 실제 탈퇴 시각이 저장된 멤버를 생성 권한 대상에서 제외한다.
+     */
+    @Test
+    void 탈퇴한_멤버는_보드_생성을_거절한다() {
+        // given
+        User user = User.create("탈퇴자", "left@example.com", null);
+        Project project = Project.create("LEFT", "탈퇴한 프로젝트", null);
+        entityManager.persist(user);
+        entityManager.persist(project);
+        Member member = Member.create(user, project, "MEMBER");
+        entityManager.persist(member);
+        member.leave(member.getJoinedAt());
+        entityManager.flush();
+        entityManager.clear();
+
+        // when / then
+        assertThatThrownBy(() -> boardService.create(user.getId(), project.getId(), new BoardCreateRequest("보드")))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThat(boardRepository.count()).isZero();
     }
 }

@@ -1,15 +1,26 @@
 package work.managerbe.project.repository;
 
+import jakarta.persistence.LockModeType;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import work.managerbe.project.domain.Project;
 
-import java.util.List;
-import java.util.UUID;
-
 public interface ProjectRepository extends JpaRepository<Project, Long> {
+    /**
+     * 프로젝트 행을 잠가 같은 프로젝트의 보드 생성 순서 계산을 직렬화한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Project p where p.id = :projectId")
+    Optional<Project> findByIdForUpdate(@Param("projectId") Long projectId);
 
+    /**
+     * 탈퇴하지 않은 멤버의 프로젝트를 프로젝트 ID 순서로 조회한다.
+     */
     @Query("""
         select m.project
         from Member m

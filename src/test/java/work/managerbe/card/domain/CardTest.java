@@ -18,7 +18,6 @@ class CardTest {
     private static final String USERNAME = "담당자";
     private static final String TITLE = "카드 제목";
     private static final String CONTENT = "카드 내용";
-    private static final int SORT_ORDER = 1;
     private static final LocalDate START_DATE = LocalDate.of(2026, 9, 15);
     private static final LocalDate END_DATE = START_DATE.plusDays(3);
 
@@ -28,7 +27,7 @@ class CardTest {
         Project project = Project.create("TEST", "테스트 프로젝트", null);
         User user = User.create(USERNAME, "test@example.com", null);
         Member member = Member.create(user, project, "MEMBER");
-        Board board = Board.create("진행 중", SORT_ORDER, project);
+        Board board = Board.create("진행 중", project);
 
         // when
         Card card = Card.create(USERNAME, TITLE, CONTENT, member, project, board, START_DATE, END_DATE);
@@ -53,7 +52,7 @@ class CardTest {
         Project project = Project.create("TEST", "테스트 프로젝트", null);
         User user = User.create(USERNAME, "test@example.com", null);
         Member member = Member.create(user, project, "MEMBER");
-        Board board = Board.create("진행 중", SORT_ORDER, project);
+        Board board = Board.create("진행 중", project);
 
         // when
         Card card = Card.create(USERNAME, TITLE, CONTENT, member, project, board, null, null);
