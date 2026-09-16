@@ -47,7 +47,14 @@ public class ProjectServiceImpl implements ProjectService{
         User creator = userRepository.findById(userId)
                 .orElseThrow(() -> UserException.of(UserErrorCode.USER_NOT_FOUND));
 
-        String code = request.cardPrefix() + "_" + UUID.randomUUID();
+        projectRepository.findByUser_Id(userId).stream()
+                .filter(a -> a.cardPrefix(a.getCode()).equalsIgnoreCase(request.cardPrefix()))
+                .findFirst()
+                .ifPresent(project -> {
+                    throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_PREFIX);
+                });
+
+        String code = request.cardPrefix().toUpperCase() + "_" + UUID.randomUUID();
         Project project = Project.create(code, request.name(), request.description());
         Project savedProject = projectRepository.save(project);
         memberRepository.save(Member.create(creator, savedProject, CREATOR_ROLE));
