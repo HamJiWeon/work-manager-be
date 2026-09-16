@@ -1,10 +1,14 @@
 package work.managerbe.board.domain;
 
 import org.junit.jupiter.api.Test;
+import java.util.List;
+import work.managerbe.global.exception.board.BoardErrorCode;
+import work.managerbe.global.exception.board.BoardException;
 import work.managerbe.project.domain.Project;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
 /**
  * 정적 팩터리로 생성한 보드의 속성과 영속화 전 상태를 검증한다.
@@ -12,6 +16,43 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class BoardTest {
 
     private static final String BOARD_NAME = "진행 중";
+
+    /**
+     * 대용량 목록을 할당하지 않고 크기를 모킹하여 생성 경계와 등록 여부를 검증한다.
+     */
+    @Test
+    void 목록_크기가_최댓값이면_보드_생성과_등록을_거절한다() {
+        // given
+        Project project = mock(Project.class);
+        List<Board> boards = mock();
+        when(project.getBoards()).thenReturn(boards);
+        when(boards.size()).thenReturn(Integer.MAX_VALUE);
+
+        // when / then
+        assertThatThrownBy(() -> Board.create(BOARD_NAME, project))
+                .isInstanceOfSatisfying(BoardException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_SORT_ORDER_EXHAUSTED));
+        verify(project, never()).registerBoard(any());
+    }
+
+    /**
+     * 목록 크기가 최댓값 직전이면 마지막으로 표현 가능한 목록 위치에 보드를 생성한다.
+     */
+    @Test
+    void 목록_크기가_최댓값_직전이면_보드를_생성한다() {
+        // given
+        Project project = mock(Project.class);
+        List<Board> boards = mock();
+        when(project.getBoards()).thenReturn(boards);
+        when(boards.size()).thenReturn(Integer.MAX_VALUE - 1);
+
+        // when
+        Board board = Board.create(BOARD_NAME, project);
+
+        // then
+        assertThat(board.getSortOrder()).isEqualTo(Integer.MAX_VALUE - 1);
+        verify(project).registerBoard(board);
+    }
 
     @Test
     void 프로젝트_목록에_등록한_순서로_보드를_생성한다() {

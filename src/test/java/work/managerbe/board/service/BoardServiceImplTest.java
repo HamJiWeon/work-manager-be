@@ -1,6 +1,7 @@
 package work.managerbe.board.service;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
@@ -41,6 +42,28 @@ class BoardServiceImplTest {
     @Mock UserRepository userRepository;
     @Mock MemberRepository memberRepository;
     @InjectMocks BoardServiceImpl service;
+
+    /**
+     * 실제 도메인 생성 경로에서 한도 예외가 전파되고 목록 변경과 저장이 발생하지 않는지 검증한다.
+     */
+    @Test
+    void 보드_정렬_순서_한도에_도달하면_저장하지_않는다() {
+        // given
+        Project project = spy(Project.create("TEST", "프로젝트", null));
+        List<Board> boards = mock();
+        doReturn(boards).when(project).getBoards();
+        when(boards.size()).thenReturn(Integer.MAX_VALUE);
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByIdForUpdate(PROJECT_ID)).thenReturn(Optional.of(project));
+        when(memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.create(USER_ID, PROJECT_ID, new BoardCreateRequest("보드")))
+                .isInstanceOfSatisfying(BoardException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_SORT_ORDER_EXHAUSTED));
+        verify(project, never()).registerBoard(any());
+        verifyNoInteractions(boardRepository);
+    }
 
     @Test
     void 기존_보드_뒤에_요청한_보드를_추가한다() {

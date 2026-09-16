@@ -6,6 +6,8 @@ import java.util.Objects;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import work.managerbe.global.base.BaseEntity;
+import work.managerbe.global.exception.board.BoardErrorCode;
+import work.managerbe.global.exception.board.BoardException;
 import work.managerbe.project.domain.Project;
 
 @Entity
@@ -13,6 +15,8 @@ import work.managerbe.project.domain.Project;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "boards")
 public class Board extends BaseEntity {
+
+    private static final int MAX_BOARD_COUNT = Integer.MAX_VALUE;
 
     private String name;
 
@@ -26,9 +30,16 @@ public class Board extends BaseEntity {
     @JoinColumn(name = "project_id")
     private Project project;
 
+    /**
+     * 목록 크기를 다음 순서로 사용하되 추가 후 크기가 int 범위를 넘으면 생성 전에 거절한다.
+     */
     private Board(String name, Project project) {
+        int nextSortOrder = project.getBoards().size();
+        if (nextSortOrder >= MAX_BOARD_COUNT) {
+            throw BoardException.of(BoardErrorCode.BOARD_SORT_ORDER_EXHAUSTED);
+        }
         this.name = name;
-        this.sortOrder = project.getBoards().size();
+        this.sortOrder = nextSortOrder;
         this.project = project;
     }
 

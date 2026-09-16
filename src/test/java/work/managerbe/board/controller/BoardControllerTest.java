@@ -15,6 +15,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardResponse;
 import work.managerbe.board.service.BoardService;
+import work.managerbe.global.exception.board.BoardErrorCode;
+import work.managerbe.global.exception.board.BoardException;
 import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
 
@@ -32,6 +34,22 @@ class BoardControllerTest {
     private final MockMvc mvc;
     @MockitoBean BoardService service;
     private static final UUID USER_ID = UUID.randomUUID();
+
+    /**
+     * 보드 순서 한도 예외가 공통 오류 처리기를 통해 409 응답으로 변환되는지 검증한다.
+     */
+    @Test
+    void 보드_정렬_순서_한도에_도달하면_409를_반환한다() throws Exception {
+        // given
+        when(service.create(eq(USER_ID), eq(1L), any()))
+                .thenThrow(BoardException.of(BoardErrorCode.BOARD_SORT_ORDER_EXHAUSTED));
+
+        // when / then
+        mvc.perform(post("/{userId}/1/boards", USER_ID).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"보드\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BOARD_SORT_ORDER_EXHAUSTED"));
+    }
 
     @Autowired
     BoardControllerTest(MockMvc mvc) {
