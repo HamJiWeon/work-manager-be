@@ -8,6 +8,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.global.exception.user.UserErrorCode;
@@ -126,6 +127,27 @@ class ProjectServiceImplTest {
             verify(projectRepository).findByUser_Id(userId);
             verify(projectRepository).save(any(Project.class));
             verify(mapper).toResponse(savedProject);
+        }
+
+        @Test
+        @DisplayName("카드 접두사에 밑줄이 포함되면 예외가 발생한다.")
+        void 카드접두사_밑줄_포함() {
+            // given
+            UUID userId = UUID.randomUUID();
+            ProjectCreateRequest request =
+                    new ProjectCreateRequest("업무 관리", "WORK_TASK", "프로젝트 설명");
+
+            // when
+            ProjectException exception = assertThrows(
+                    ProjectException.class,
+                    () -> projectService.create(userId, request)
+            );
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_INVALID_PREFIX);
+            assertThat(exception.getErrorCode().getHttpStatus())
+                    .isEqualTo(HttpStatus.BAD_REQUEST);
+            verifyNoInteractions(projectRepository, mapper);
         }
 
         @Test
