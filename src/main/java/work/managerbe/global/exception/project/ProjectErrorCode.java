@@ -1,0 +1,21 @@
+package work.managerbe.global.exception.project;
+
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import work.managerbe.global.exception.ApiErrorCode;
+
+/**
+ * 프로젝트 도메인의 오류 상태와 공개 메시지를 정의한다.
+ * name은 도메인 약어와 세 자리 일련번호로 구성한다.
+ */
+@Getter
+@RequiredArgsConstructor
+public enum ProjectErrorCode implements ApiErrorCode {
+    PROJECT_NOT_FOUND("PJT-001", HttpStatus.NOT_FOUND, "프로젝트를 찾을 수 없습니다."),
+    PROJECT_INVALID_CODE_NAME("PJT-002", HttpStatus.BAD_REQUEST, "프로젝트 코드/이름은 필수입니다.");
+
+    private final String name;
+    private final HttpStatus httpStatus;
+    private final String message;
+}
