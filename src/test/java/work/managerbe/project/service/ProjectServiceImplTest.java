@@ -19,6 +19,11 @@ import work.managerbe.project.mapper.ProjectMapper;
 import work.managerbe.project.repository.ProjectRepository;
 
 import java.util.List;
+import java.util.Optional;
+import work.managerbe.member.domain.Member;
+import work.managerbe.member.repository.MemberRepository;
+import work.managerbe.user.domain.User;
+import work.managerbe.user.repository.UserRepository;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,12 +40,54 @@ class ProjectServiceImplTest {
     @Mock
     private ProjectMapper mapper;
 
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private MemberRepository memberRepository;
+
     @InjectMocks
     private ProjectServiceImpl projectService;
 
     @Nested
     @DisplayName("create")
     class Create {
+        /**
+         * 생성자가 없으면 프로젝트와 멤버 저장 전에 요청을 거절한다.
+         */
+        @Test
+        void 존재하지_않는_사용자는_프로젝트를_생성할_수_없다() {
+            // given
+            UUID userId = UUID.randomUUID();
+            ProjectCreateRequest request = new ProjectCreateRequest("업무 관리", "WORK", null);
+            when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+            // when
+            UserException exception = assertThrows(UserException.class,
+                    () -> projectService.create(userId, request));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
+            verifyNoInteractions(projectRepository, memberRepository, mapper);
+        }
+
+        /**
+         * 사용자 ID가 없으면 조회와 저장을 수행하지 않는다.
+         */
+        @Test
+        void 사용자_ID가_없으면_프로젝트를_생성할_수_없다() {
+            // given
+            ProjectCreateRequest request = new ProjectCreateRequest("업무 관리", "WORK", null);
+
+            // when
+            UserException exception = assertThrows(UserException.class,
+                    () -> projectService.create(null, request));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
+            verifyNoInteractions(userRepository, projectRepository, memberRepository, mapper);
+        }
+
         @Test
         @DisplayName("카드 접두사에 UUID를 붙여 프로젝트를 저장한다.")
         void 프로젝트_생성() {
@@ -50,6 +97,8 @@ class ProjectServiceImplTest {
                     new ProjectCreateRequest("업무 관리", "WORK", "프로젝트 설명");
 
             Project savedProject = mock(Project.class);
+            User creator = User.create("생성자", "creator@example.com", null);
+            when(userRepository.findById(userId)).thenReturn(Optional.of(creator));
             ProjectResponse expectedResponse = mock(ProjectResponse.class);
 
             when(projectRepository.save(any(Project.class)))
@@ -73,6 +122,12 @@ class ProjectServiceImplTest {
             assertThat(project.getName()).isEqualTo(request.name());
             assertThat(project.getDescription()).isEqualTo(request.description());
             assertThat(response).isSameAs(expectedResponse);
+            ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
+            verify(memberRepository).save(memberCaptor.capture());
+            assertThat(memberCaptor.getValue().getUser()).isSameAs(creator);
+            assertThat(memberCaptor.getValue().getProject()).isSameAs(savedProject);
+            assertThat(memberCaptor.getValue().getRole()).isEqualTo("OWNER");
+            assertThat(memberCaptor.getValue().getLeftAt()).isNull();
 
             verify(mapper).toResponse(savedProject);
         }

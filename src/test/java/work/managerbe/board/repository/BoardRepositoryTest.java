@@ -13,6 +13,8 @@ import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.service.BoardService;
 import work.managerbe.user.domain.User;
 import work.managerbe.project.domain.Project;
+import work.managerbe.project.service.ProjectService;
+import work.managerbe.project.dto.request.ProjectCreateRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -34,12 +36,47 @@ class BoardRepositoryTest {
     private final BoardRepository boardRepository;
     private final EntityManager entityManager;
     private final BoardService boardService;
+    private final ProjectService projectService;
 
     @Autowired
-    BoardRepositoryTest(BoardRepository boardRepository, EntityManager entityManager, BoardService boardService) {
+    BoardRepositoryTest(BoardRepository boardRepository, EntityManager entityManager, BoardService boardService,
+                        ProjectService projectService) {
         this.boardRepository = boardRepository;
         this.entityManager = entityManager;
         this.boardService = boardService;
+        this.projectService = projectService;
+    }
+
+    /**
+     * 프로젝트 생성 서비스가 등록한 활성 멤버로 별도 가입 없이 첫 보드를 저장할 수 있는지 검증한다.
+     */
+    @Test
+    void 프로젝트_생성자는_즉시_보드를_생성할_수_있다() {
+        // given
+        User creator = User.create("생성자", "creator@example.com", null);
+        entityManager.persist(creator);
+        var project = projectService.create(creator.getId(),
+                new ProjectCreateRequest("프로젝트", "CREATOR", null));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        var board = boardService.create(creator.getId(), project.id(), new BoardCreateRequest(BOARD_NAME));
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        assertThat(boardRepository.findById(board.id())).isPresent();
+        assertThat(board.projectId()).isEqualTo(project.id());
+        assertThat(board.sortOrder()).isZero();
+        Member member = entityManager.createQuery(
+                        "select m from Member m where m.user.id = :userId and m.project.id = :projectId", Member.class)
+                .setParameter("userId", creator.getId())
+                .setParameter("projectId", project.id())
+                .getSingleResult();
+        assertThat(member.getRole()).isEqualTo("OWNER");
+        assertThat(member.getJoinedAt()).isNotNull();
+        assertThat(member.getLeftAt()).isNull();
     }
 
     @Test
