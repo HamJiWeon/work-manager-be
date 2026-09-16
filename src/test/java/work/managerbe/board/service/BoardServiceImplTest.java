@@ -3,6 +3,8 @@ package work.managerbe.board.service;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.access.AccessDeniedException;
+import work.managerbe.member.repository.MemberRepository;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
@@ -37,6 +39,7 @@ class BoardServiceImplTest {
     @Mock BoardRepository boardRepository;
     @Mock ProjectRepository projectRepository;
     @Mock UserRepository userRepository;
+    @Mock MemberRepository memberRepository;
     @InjectMocks BoardServiceImpl service;
 
     @Test
@@ -46,6 +49,7 @@ class BoardServiceImplTest {
         Board existing = project.addBoard("기존 보드");
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         when(projectRepository.findByIdForUpdate(PROJECT_ID)).thenReturn(Optional.of(project));
+        when(memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID)).thenReturn(true);
         when(boardRepository.save(any(Board.class))).thenAnswer(invocation -> invocation.getArgument(0));
         // when
         var response = service.create(USER_ID, PROJECT_ID, new BoardCreateRequest("Board API"));
@@ -56,6 +60,23 @@ class BoardServiceImplTest {
         assertThat(project.getBoards().getFirst()).isSameAs(existing);
         assertThat(project.getBoards().getLast().getName()).isEqualTo("Board API");
         verify(boardRepository).save(project.getBoards().getLast());
+    }
+
+    /**
+     * 활성 멤버가 아니면 목록 변경과 저장 전에 거절한다.
+     */
+    @Test
+    void 활성_멤버가_아니면_보드를_추가하지_않는다() {
+        // given
+        Project project = Project.create("TEST", "프로젝트", null);
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByIdForUpdate(PROJECT_ID)).thenReturn(Optional.of(project));
+
+        // when / then
+        assertThatThrownBy(() -> service.create(USER_ID, PROJECT_ID, new BoardCreateRequest("보드")))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThat(project.getBoards()).isEmpty();
+        verifyNoInteractions(boardRepository);
     }
 
     @ParameterizedTest

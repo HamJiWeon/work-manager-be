@@ -1,10 +1,12 @@
 package work.managerbe.board.repository;
 
 import jakarta.persistence.EntityManager;
+import work.managerbe.member.domain.Member;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.DataIntegrityViolationException;
+import jakarta.persistence.PersistenceException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.BoardCreateRequest;
@@ -28,7 +30,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class BoardRepositoryTest {
 
     private static final String BOARD_NAME = "진행 중";
-    private static final int SORT_ORDER = 2;
 
     private final BoardRepository boardRepository;
     private final EntityManager entityManager;
@@ -92,6 +93,7 @@ class BoardRepositoryTest {
         Project project = Project.create("SERVICE", "프로젝트", null);
         entityManager.persist(user);
         entityManager.persist(project);
+        entityManager.persist(Member.create(user, project, "MEMBER"));
 
         // when
         var first = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("첫 보드"));
@@ -125,10 +127,85 @@ class BoardRepositoryTest {
     @Test
     void 프로젝트가_없는_보드는_저장할_수_없다() {
         // given
-        Board board = Board.create(BOARD_NAME, SORT_ORDER, null);
+        String insertWithoutProject = """
+                INSERT INTO boards (name, sort_order, created_at, updated_at)
+                VALUES ('보드', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """;
 
         // when / then
-        assertThatThrownBy(() -> boardRepository.saveAndFlush(board))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> entityManager.createNativeQuery(insertWithoutProject).executeUpdate())
+                .isInstanceOf(PersistenceException.class);
+    }
+
+    /**
+     * 팩터리 직접 호출과 프로젝트 생성 API를 섞어도 DB 순서와 목록이 일치하는지 검증한다.
+     */
+    @Test
+    void 팩터리로_직접_생성한_보드도_목록_순서대로_저장된다() {
+        // given
+        Project project = Project.create("FACTORY", "팩터리", null);
+        entityManager.persist(project);
+        Board first = Board.create("첫 보드", project);
+        Board second = project.addBoard("둘째 보드");
+        Board third = Board.create("셋째 보드", project);
+
+        // when
+        boardRepository.save(first);
+        boardRepository.save(second);
+        boardRepository.saveAndFlush(third);
+        entityManager.clear();
+
+        // then
+        assertThat(boardRepository.findById(second.getId()).orElseThrow().getSortOrder()).isEqualTo(1);
+        assertThat(boardRepository.findById(third.getId()).orElseThrow().getSortOrder()).isEqualTo(2);
+        assertThat(entityManager.find(Project.class, project.getId()).getBoards())
+                .extracting(Board::getId).containsExactly(first.getId(), second.getId(), third.getId());
+    }
+
+    /**
+     * 다른 프로젝트의 활성 멤버이거나 다른 사용자가 대상 프로젝트 멤버여도 생성할 수 없다.
+     */
+    @Test
+    void 대상_프로젝트에_참여하지_않은_사용자는_생성을_거절한다() {
+        // given
+        User user = User.create("요청자", "outsider@example.com", null);
+        User member = User.create("멤버", "member@example.com", null);
+        Project target = Project.create("TARGET", "대상", null);
+        Project other = Project.create("OTHER", "다른 프로젝트", null);
+        entityManager.persist(user);
+        entityManager.persist(member);
+        entityManager.persist(target);
+        entityManager.persist(other);
+        entityManager.persist(Member.create(user, other, "MEMBER"));
+        entityManager.persist(Member.create(member, target, "MEMBER"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when / then
+        assertThatThrownBy(() -> boardService.create(user.getId(), target.getId(), new BoardCreateRequest("보드")))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThat(boardRepository.count()).isZero();
+    }
+
+    /**
+     * 실제 탈퇴 시각이 저장된 멤버를 생성 권한 대상에서 제외한다.
+     */
+    @Test
+    void 탈퇴한_멤버는_보드_생성을_거절한다() {
+        // given
+        User user = User.create("탈퇴자", "left@example.com", null);
+        Project project = Project.create("LEFT", "탈퇴한 프로젝트", null);
+        entityManager.persist(user);
+        entityManager.persist(project);
+        Member member = Member.create(user, project, "MEMBER");
+        entityManager.persist(member);
+        member.leave(member.getJoinedAt());
+        entityManager.flush();
+        entityManager.clear();
+
+        // when / then
+        assertThatThrownBy(() -> boardService.create(user.getId(), project.getId(), new BoardCreateRequest("보드")))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThat(boardRepository.count()).isZero();
     }
 }

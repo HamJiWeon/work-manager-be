@@ -1,6 +1,7 @@
 package work.managerbe.board.repository;
 
 import jakarta.persistence.EntityManager;
+import work.managerbe.member.domain.Member;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -57,6 +58,7 @@ class BoardConcurrencyTest {
         transaction.executeWithoutResult(status -> {
             entityManager.persist(user);
             entityManager.persist(project);
+            entityManager.persist(Member.create(user, project, "MEMBER"));
         });
         var firstCreated = new CountDownLatch(1);
         var secondStarted = new CountDownLatch(1);
@@ -102,6 +104,8 @@ class BoardConcurrencyTest {
         } finally {
             transaction.executeWithoutResult(status -> {
                 entityManager.createQuery("delete from Board b where b.project.id = :projectId")
+                        .setParameter("projectId", project.getId()).executeUpdate();
+                entityManager.createQuery("delete from Member m where m.project.id = :projectId")
                         .setParameter("projectId", project.getId()).executeUpdate();
                 entityManager.remove(entityManager.find(Project.class, project.getId()));
                 entityManager.remove(entityManager.find(User.class, user.getId()));

@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import work.managerbe.board.dto.BoardCreateRequest;
@@ -76,5 +77,21 @@ class BoardControllerTest {
                         .content("{\"name\":\"보드\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PROJECT_NOT_FOUND"));
+    }
+
+    /**
+     * 활성 멤버 검증 실패가 공통 오류 응답의 403으로 변환되는지 확인한다.
+     */
+    @Test
+    void 프로젝트_참여_권한이_없으면_403을_반환한다() throws Exception {
+        // given
+        when(service.create(eq(USER_ID), eq(1L), any()))
+                .thenThrow(new AccessDeniedException("활성 멤버가 아닙니다."));
+
+        // when / then
+        mvc.perform(post("/{userId}/1/boards", USER_ID).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"보드\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 }

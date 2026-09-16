@@ -33,7 +33,6 @@ class CardRepositoryTest {
     private static final String USERNAME = "담당자";
     private static final String TITLE = "카드 제목";
     private static final String CONTENT = "카드 내용";
-    private static final int SORT_ORDER = 1;
     private static final LocalDate START_DATE = LocalDate.of(2026, 9, 15);
     private static final LocalDate END_DATE = START_DATE.plusDays(3);
 
@@ -57,7 +56,7 @@ class CardRepositoryTest {
         entityManager.persist(user);
         entityManager.persist(project);
         member = Member.create(user, project, "MEMBER");
-        board = Board.create("진행 중", SORT_ORDER, project);
+        board = Board.create("진행 중", project);
         entityManager.persist(member);
         entityManager.persist(board);
         entityManager.flush();

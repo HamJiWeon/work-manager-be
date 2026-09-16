@@ -44,9 +44,19 @@ public class Project extends BaseEntity {
      * 보드를 목록 끝에 추가하며 JPA가 목록 인덱스를 정렬 컬럼에 저장한다.
      */
     public Board addBoard(String name) {
-        Board board = Board.create(name, boards.size(), this);
-        boards.add(board);
-        return board;
+        return Board.create(name, this);
+    }
+
+    /**
+     * 이 프로젝트에서 생성한 보드만 목록에 등록하고 중복 등록으로 인한 순서 변경을 막는다.
+     */
+    public void registerBoard(Board board) {
+        if (board == null || board.getProject() != this) {
+            throw new IllegalArgumentException("이 프로젝트의 보드만 등록할 수 있습니다.");
+        }
+        if (!boards.contains(board)) {
+            boards.add(board);
+        }
     }
 
     /**

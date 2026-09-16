@@ -2,7 +2,7 @@ package work.managerbe.board.domain;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
-import lombok.Builder;
+import java.util.Objects;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import work.managerbe.global.base.BaseEntity;
@@ -26,17 +26,19 @@ public class Board extends BaseEntity {
     @JoinColumn(name = "project_id")
     private Project project;
 
-    @Builder
-    private Board(String name, int sortOrder, Project project) {
+    private Board(String name, Project project) {
         this.name = name;
-        this.sortOrder = sortOrder;
+        this.sortOrder = project.getBoards().size();
         this.project = project;
     }
 
     /**
-     * 전달받은 속성과 연관 엔티티로 새 보드를 생성한다.
+     * 프로젝트 목록 끝의 순서로 보드를 생성하고 양쪽 연관관계를 함께 등록한다.
      */
-    public static Board create(String name, int sortOrder, Project project) {
-        return new Board(name, sortOrder, project);
+    public static Board create(String name, Project project) {
+        Objects.requireNonNull(project, "프로젝트는 필수입니다.");
+        Board board = new Board(name, project);
+        project.registerBoard(board);
+        return board;
     }
 }

@@ -50,7 +50,10 @@ class BoardResponseTest {
     @Test
     void 프로젝트가_없는_보드도_응답으로_변환한다() {
         // given
-        Board board = Board.create(BOARD_NAME, SORT_ORDER, null);
+        Board board = mock(Board.class);
+        when(board.getId()).thenReturn(null);
+        when(board.getName()).thenReturn(BOARD_NAME);
+        when(board.getSortOrder()).thenReturn(SORT_ORDER);
 
         // when
         BoardResponse response = BoardResponse.from(board);
