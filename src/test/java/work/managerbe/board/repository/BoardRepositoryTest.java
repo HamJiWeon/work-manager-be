@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * H2에 Flyway 스키마를 적용하고 영속성 컨텍스트를 비워 실제 저장, 조회, 삭제와 필수 관계를 검증한다.
+ * H2에 Flyway 스키마를 적용하고 코드 기반 보드 생성과 실제 저장, 조회, 삭제 및 필수 관계를 검증한다.
  */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:board-repository-test;DB_CLOSE_DELAY=-1",
@@ -61,7 +61,7 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when
-        var board = boardService.create(creator.getId(), project.id(), new BoardCreateRequest(BOARD_NAME));
+        var board = boardService.create(creator.getId(), project.code(), new BoardCreateRequest(BOARD_NAME));
         entityManager.flush();
         entityManager.clear();
 
@@ -133,8 +133,8 @@ class BoardRepositoryTest {
         entityManager.persist(Member.create(user, project, "MEMBER"));
 
         // when
-        var first = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("첫 보드"));
-        var second = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("둘째 보드"));
+        var first = boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("첫 보드"));
+        var second = boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("둘째 보드"));
         entityManager.flush();
         entityManager.clear();
 
@@ -150,7 +150,7 @@ class BoardRepositoryTest {
         Project loaded = entityManager.find(Project.class, project.getId());
         assertThat(loaded.getBoards()).extracting(Board::getName).containsExactly("첫 보드", "둘째 보드");
         assertThat(loaded.getBoards()).extracting(Board::getSortOrder).containsExactly(0, 1);
-        var third = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("셋째 보드"));
+        var third = boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("셋째 보드"));
         entityManager.flush();
         entityManager.clear();
         assertThat(third.sortOrder()).isEqualTo(2);
@@ -219,7 +219,7 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when / then
-        assertThatThrownBy(() -> boardService.create(user.getId(), target.getId(), new BoardCreateRequest("보드")))
+        assertThatThrownBy(() -> boardService.create(user.getId(), target.getCode(), new BoardCreateRequest("보드")))
                 .isInstanceOf(AccessDeniedException.class);
         assertThat(boardRepository.count()).isZero();
     }
@@ -241,7 +241,7 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when / then
-        assertThatThrownBy(() -> boardService.create(user.getId(), project.getId(), new BoardCreateRequest("보드")))
+        assertThatThrownBy(() -> boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("보드")))
                 .isInstanceOf(AccessDeniedException.class);
         assertThat(boardRepository.count()).isZero();
     }

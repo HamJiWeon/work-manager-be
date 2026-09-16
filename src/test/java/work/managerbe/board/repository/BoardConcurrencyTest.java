@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 독립 트랜잭션의 생성 요청을 겹쳐 프로젝트 잠금 대기와 커밋 후 보드 순서를 검증한다.
+ * 프로젝트 코드로 요청한 독립 트랜잭션의 생성을 겹쳐 프로젝트 잠금 대기와 커밋 후 보드 순서를 검증한다.
  */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:board-concurrency-test;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000",
@@ -68,7 +68,7 @@ class BoardConcurrencyTest {
             try {
                 // when
                 var first = executor.submit(() -> transaction.execute(status -> {
-                    var response = boardService.create(user.getId(), project.getId(), new BoardCreateRequest("첫 보드"));
+                    var response = boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("첫 보드"));
                     entityManager.flush();
                     firstCreated.countDown();
                     await(allowFirstCommit);
@@ -77,7 +77,7 @@ class BoardConcurrencyTest {
                 await(firstCreated);
                 var second = executor.submit(() -> transaction.execute(status -> {
                     secondStarted.countDown();
-                    return boardService.create(user.getId(), project.getId(), new BoardCreateRequest("둘째 보드"));
+                    return boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("둘째 보드"));
                 }));
                 await(secondStarted);
 

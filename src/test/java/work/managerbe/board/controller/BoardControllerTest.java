@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * 보드 생성 경로의 JSON 검증과 성공·실패 응답을 검증한다.
+ * 보드 생성 경로의 프로젝트 코드 전달과 JSON 검증, 성공·실패 응답을 검증한다.
  */
 @WebMvcTest(BoardController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -34,6 +34,7 @@ class BoardControllerTest {
     private final MockMvc mvc;
     @MockitoBean BoardService service;
     private static final UUID USER_ID = UUID.randomUUID();
+    private static final String PROJECT_CODE = "TEST_ABC";
 
     /**
      * 보드 순서 한도 예외가 공통 오류 처리기를 통해 409 응답으로 변환되는지 검증한다.
@@ -41,11 +42,11 @@ class BoardControllerTest {
     @Test
     void 보드_정렬_순서_한도에_도달하면_409를_반환한다() throws Exception {
         // given
-        when(service.create(eq(USER_ID), eq(1L), any()))
+        when(service.create(eq(USER_ID), eq(PROJECT_CODE), any()))
                 .thenThrow(BoardException.of(BoardErrorCode.BOARD_SORT_ORDER_EXHAUSTED));
 
         // when / then
-        mvc.perform(post("/{userId}/1/boards", USER_ID).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/{userId}/{code}/boards", USER_ID, PROJECT_CODE).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"보드\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("BOARD_SORT_ORDER_EXHAUSTED"));
@@ -60,10 +61,10 @@ class BoardControllerTest {
     void 정상_요청은_201과_전체_응답을_반환한다() throws Exception {
         // given
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 9, 0);
-        when(service.create(USER_ID, 1L, new BoardCreateRequest("Board API")))
+        when(service.create(USER_ID, PROJECT_CODE, new BoardCreateRequest("Board API")))
                 .thenReturn(new BoardResponse(2L, 1L, "Board API", 1, now, now));
         // when & then
-        mvc.perform(post("/{userId}/1/boards", USER_ID).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/{userId}/{code}/boards", USER_ID, PROJECT_CODE).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Board API\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(2))
@@ -72,14 +73,14 @@ class BoardControllerTest {
                 .andExpect(jsonPath("$.sortOrder").value(1))
                 .andExpect(jsonPath("$.createdAt").value("2026-09-14T09:00:00"))
                 .andExpect(jsonPath("$.updatedAt").value("2026-09-14T09:00:00"));
-        verify(service).create(USER_ID, 1L, new BoardCreateRequest("Board API"));
+        verify(service).create(USER_ID, PROJECT_CODE, new BoardCreateRequest("Board API"));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"name\":null}", "{\"name\":\" \"}", "{", ""})
     void 잘못된_본문은_400을_반환한다(String body) throws Exception {
         // given & when & then
-        mvc.perform(post("/{userId}/1/boards", USER_ID).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/{userId}/{code}/boards", USER_ID, PROJECT_CODE).contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(service);
@@ -88,10 +89,10 @@ class BoardControllerTest {
     @Test
     void 없는_프로젝트는_404를_반환한다() throws Exception {
         // given
-        when(service.create(eq(USER_ID), eq(1L), any()))
+        when(service.create(eq(USER_ID), eq(PROJECT_CODE), any()))
                 .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
         // when & then
-        mvc.perform(post("/{userId}/1/boards", USER_ID).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/{userId}/{code}/boards", USER_ID, PROJECT_CODE).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"보드\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PROJECT_NOT_FOUND"));
@@ -103,11 +104,11 @@ class BoardControllerTest {
     @Test
     void 프로젝트_참여_권한이_없으면_403을_반환한다() throws Exception {
         // given
-        when(service.create(eq(USER_ID), eq(1L), any()))
+        when(service.create(eq(USER_ID), eq(PROJECT_CODE), any()))
                 .thenThrow(new AccessDeniedException("활성 멤버가 아닙니다."));
 
         // when / then
-        mvc.perform(post("/{userId}/1/boards", USER_ID).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/{userId}/{code}/boards", USER_ID, PROJECT_CODE).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"보드\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));

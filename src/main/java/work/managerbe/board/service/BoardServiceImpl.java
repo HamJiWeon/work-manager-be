@@ -31,18 +31,18 @@ public class BoardServiceImpl implements BoardService {
     private final MemberRepository memberRepository;
 
     /**
-     * 이름과 사용자 존재, 활성 멤버 여부를 검증하고 프로젝트 잠금 안에서 보드를 추가한다.
+     * 이름과 사용자를 검증하고 코드로 조회한 프로젝트를 잠근 뒤 활성 멤버의 보드를 추가한다.
      */
     @Override
-    public BoardResponse create(UUID userId, Long projectId, BoardCreateRequest request) {
+    public BoardResponse create(UUID userId, String code, BoardCreateRequest request) {
         requestValidate(request);
         userValidate(userId);
-        projectValidate(projectId);
+        projectValidate(code);
 
-        Project project = projectRepository.findByIdForUpdate(projectId)
+        Project project = projectRepository.findByCodeForUpdate(code)
                 .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
-        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(userId, projectId)) {
+        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(userId, project.getId())) {
             throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 생성할 수 있습니다.");
         }
 
@@ -50,8 +50,8 @@ public class BoardServiceImpl implements BoardService {
         return BoardResponse.from(boardRepository.save(board));
     }
 
-    private static void projectValidate(Long projectId) {
-        if (projectId == null) {
+    private static void projectValidate(String code) {
+        if (code == null || code.isBlank()) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND);
         }
     }

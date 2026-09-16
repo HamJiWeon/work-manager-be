@@ -8,5 +8,5 @@ public interface BoardService {
     /**
      * 사용자와 프로젝트를 확인하고 프로젝트의 마지막 순서에 보드를 생성한다.
      */
-    BoardResponse create(UUID userId, Long projectId, BoardCreateRequest request);
+    BoardResponse create(UUID userId, String code, BoardCreateRequest request);
 }

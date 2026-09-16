@@ -12,9 +12,10 @@ import work.managerbe.board.service.BoardService;
 import work.managerbe.global.constant.ApiPaths;
 
 @RestController
-@RequestMapping(ApiPaths.USER_BASE + "/{projectId}/boards")
+@RequestMapping(ApiPaths.USER_BASE + ApiPaths.PRJ_CODE + "/boards")
 @RequiredArgsConstructor
 public class BoardController {
+
     private final BoardService boardService;
 
     /**
@@ -22,9 +23,9 @@ public class BoardController {
      */
     @PostMapping
     public ResponseEntity<BoardResponse> create(
-            @PathVariable("userId") UUID userId, @PathVariable("projectId") Long projectId,
+            @PathVariable("userId") UUID userId, @PathVariable("code") String code,
             @Valid @RequestBody BoardCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(boardService.create(userId, projectId, request));
+                .body(boardService.create(userId, code, request));
     }
 }
