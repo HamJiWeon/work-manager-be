@@ -28,6 +28,20 @@ class ProjectExceptionTest {
     }
 
     @Test
+    void 접두사_중복_오류는_CONFLICT_상태를_제공한다() {
+        // given
+        ProjectErrorCode errorCode = ProjectErrorCode.PROJECT_DUPLICATE_PREFIX;
+
+        // when
+        ProjectException exception = ProjectException.of(errorCode);
+
+        // then
+        assertThat(exception.getErrorCode()).isSameAs(errorCode);
+        assertThat(errorCode.getName()).isEqualTo("PJT-003");
+        assertThat(errorCode.getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
     void 오류_코드만으로_생성하면_상세정보는_비어있고_원인은_없다() {
         // given / when
         ProjectException exception = ProjectException.of(ERROR_CODE);

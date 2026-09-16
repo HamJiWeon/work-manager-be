@@ -41,17 +41,20 @@ class ProjectServiceImplTest {
     @Nested
     @DisplayName("create")
     class Create {
+
         @Test
-        @DisplayName("카드 접두사에 UUID를 붙여 프로젝트를 저장한다.")
+        @DisplayName("중복이 없으면 카드 접두사를 대문자로 변환하고 UUID를 붙여 저장한다.")
         void 프로젝트_생성() {
             // given
+            String prefix = "work";
             UUID userId = UUID.randomUUID();
             ProjectCreateRequest request =
-                    new ProjectCreateRequest("업무 관리", "WORK", "프로젝트 설명");
+                    new ProjectCreateRequest("업무 관리", prefix, "프로젝트 설명");
 
             Project savedProject = mock(Project.class);
             ProjectResponse expectedResponse = mock(ProjectResponse.class);
 
+            when(projectRepository.findByUser_Id(userId)).thenReturn(List.of());
             when(projectRepository.save(any(Project.class)))
                     .thenReturn(savedProject);
             when(mapper.toResponse(savedProject))
@@ -63,6 +66,7 @@ class ProjectServiceImplTest {
             ArgumentCaptor<Project> captor =
                     ArgumentCaptor.forClass(Project.class);
 
+            verify(projectRepository).findByUser_Id(userId);
             verify(projectRepository).save(captor.capture());
 
             Project project = captor.getValue();
@@ -74,6 +78,53 @@ class ProjectServiceImplTest {
             assertThat(project.getDescription()).isEqualTo(request.description());
             assertThat(response).isSameAs(expectedResponse);
 
+            verify(mapper).toResponse(savedProject);
+        }
+
+        @Test
+        @DisplayName("사용자의 기존 접두사와 대소문자 구분 없이 중복되면 저장하지 않는다.")
+        void 사용자_접두사_중복() {
+            // given
+            String prefix = "work";
+            UUID userId = UUID.randomUUID();
+            ProjectCreateRequest request = new ProjectCreateRequest("업무 관리", prefix, null);
+            Project other = Project.create("TASK_" + UUID.randomUUID(), "다른 프로젝트", null);
+            Project existing = Project.create("WORK_" + UUID.randomUUID(), "기존 프로젝트", null);
+            when(projectRepository.findByUser_Id(userId)).thenReturn(List.of(other, existing));
+
+            // when
+            ProjectException exception = assertThrows(
+                    ProjectException.class,
+                    () -> projectService.create(userId, request)
+            );
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_DUPLICATE_PREFIX);
+            verify(projectRepository).findByUser_Id(userId);
+            verify(projectRepository, never()).save(any(Project.class));
+            verifyNoInteractions(mapper);
+        }
+
+        @Test
+        @DisplayName("사용자의 기존 접두사와 일부만 일치하면 생성할 수 있다.")
+        void 다른_접두사로_프로젝트_생성() {
+            // given
+            UUID userId = UUID.randomUUID();
+            ProjectCreateRequest request = new ProjectCreateRequest("업무 관리", "WORK", null);
+            Project existing = Project.create("WORKFLOW_" + UUID.randomUUID(), "기존 프로젝트", null);
+            Project savedProject = mock(Project.class);
+            ProjectResponse expectedResponse = mock(ProjectResponse.class);
+            when(projectRepository.findByUser_Id(userId)).thenReturn(List.of(existing));
+            when(projectRepository.save(any(Project.class))).thenReturn(savedProject);
+            when(mapper.toResponse(savedProject)).thenReturn(expectedResponse);
+
+            // when
+            ProjectResponse response = projectService.create(userId, request);
+
+            // then
+            assertThat(response).isSameAs(expectedResponse);
+            verify(projectRepository).findByUser_Id(userId);
+            verify(projectRepository).save(any(Project.class));
             verify(mapper).toResponse(savedProject);
         }
 
