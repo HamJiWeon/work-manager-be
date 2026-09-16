@@ -32,7 +32,14 @@ public class ProjectServiceImpl implements ProjectService{
 
         // memberService에 사용자 할당 로직 추후 추가
 
-        String code = request.cardPrefix() + "_" + UUID.randomUUID();
+        projectRepository.findByUser_Id(userId).stream()
+                .filter(a -> a.cardPrefix(a.getCode()).equalsIgnoreCase(request.cardPrefix()))
+                .findFirst()
+                .ifPresent(project -> {
+                    throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_PREFIX);
+                });
+
+        String code = request.cardPrefix().toUpperCase() + "_" + UUID.randomUUID();
         Project project = Project.create(code, request.name(), request.description());
         return mapper.toResponse(projectRepository.save(project));
     }
