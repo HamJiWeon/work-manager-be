@@ -3,7 +3,7 @@ package work.managerbe.board.service;
 import java.util.UUID;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardResponse;
-import work.managerbe.board.dto.BoardPageResponse;
+import work.managerbe.board.dto.BoardSliceResponse;
 
 public interface BoardService {
     /**
@@ -14,5 +14,5 @@ public interface BoardService {
     /**
      * 활성 멤버의 프로젝트 보드를 정렬 순서와 ID 오름차순으로 페이지 조회한다.
      */
-    BoardPageResponse getAll(UUID userId, String code, int page, int size);
+    BoardSliceResponse getAll(UUID userId, String code, int page, int size);
 }

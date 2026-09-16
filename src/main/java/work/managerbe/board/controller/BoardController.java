@@ -9,7 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardResponse;
-import work.managerbe.board.dto.BoardPageResponse;
+import work.managerbe.board.dto.BoardSliceResponse;
 import work.managerbe.board.service.BoardService;
 import work.managerbe.global.constant.ApiPaths;
 
@@ -35,7 +35,7 @@ public class BoardController {
      * 페이지 번호와 크기를 검증하고 프로젝트의 보드 목록을 반환한다.
      */
     @GetMapping
-    public ResponseEntity<BoardPageResponse> getAll(
+    public ResponseEntity<BoardSliceResponse> getAll(
             @PathVariable("userId") UUID userId, @PathVariable("code") String code,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) int size) {

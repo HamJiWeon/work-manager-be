@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardResponse;
-import work.managerbe.board.dto.BoardPageResponse;
+import work.managerbe.board.dto.BoardSliceResponse;
 import work.managerbe.board.repository.BoardRepository;
 import work.managerbe.global.exception.board.BoardErrorCode;
 import work.managerbe.global.exception.board.BoardException;
@@ -57,7 +57,7 @@ public class BoardServiceImpl implements BoardService {
      */
     @Override
     @Transactional(readOnly = true)
-    public BoardPageResponse getAll(UUID userId, String code, int page, int size) {
+    public BoardSliceResponse getAll(UUID userId, String code, int page, int size) {
         userValidate(userId);
         projectValidate(code);
 
@@ -68,7 +68,7 @@ public class BoardServiceImpl implements BoardService {
             throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 조회할 수 있습니다.");
         }
 
-        return BoardPageResponse.from(boardRepository.findByProject_IdOrderBySortOrderAscIdAsc(
+        return BoardSliceResponse.from(boardRepository.findByProject_IdOrderBySortOrderAscIdAsc(
                 project.getId(), PageRequest.of(page, size)));
     }
 

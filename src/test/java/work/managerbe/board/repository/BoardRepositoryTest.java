@@ -248,7 +248,7 @@ class BoardRepositoryTest {
     }
 
     /**
-     * 대상 프로젝트만 정렬해 페이지를 나누고 범위 밖 페이지에서도 전체 개수를 유지한다.
+     * 대상 프로젝트만 정렬해 조회하고 첫 슬라이스, 마지막 및 범위 밖 슬라이스의 다음 데이터 여부를 검증한다.
      */
     @Test
     void 코드로_보드_목록을_정렬하고_페이지로_조회한다() {
@@ -281,14 +281,13 @@ class BoardRepositoryTest {
                 .containsOnly(project.getId());
         assertThat(firstPage.page()).isZero();
         assertThat(firstPage.size()).isEqualTo(2);
-        assertThat(firstPage.totalElements()).isEqualTo(3);
-        assertThat(firstPage.totalPages()).isEqualTo(2);
+        assertThat(firstPage.hasNext()).isTrue();
         assertThat(secondPage.items()).extracting(BoardResponse::id)
                 .containsExactly(third.getId());
         assertThat(secondPage.page()).isEqualTo(1);
+        assertThat(secondPage.hasNext()).isFalse();
         assertThat(outsidePage.items()).isEmpty();
-        assertThat(outsidePage.totalElements()).isEqualTo(3);
-        assertThat(outsidePage.totalPages()).isEqualTo(2);
+        assertThat(outsidePage.hasNext()).isFalse();
     }
 
     @Test
@@ -307,8 +306,7 @@ class BoardRepositoryTest {
 
         // then
         assertThat(response.items()).isEmpty();
-        assertThat(response.totalElements()).isZero();
-        assertThat(response.totalPages()).isZero();
+        assertThat(response.hasNext()).isFalse();
     }
 
     @Test

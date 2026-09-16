@@ -2,7 +2,7 @@ package work.managerbe.board.controller;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import work.managerbe.board.dto.BoardPageResponse;
+import work.managerbe.board.dto.BoardSliceResponse;
 import org.junit.jupiter.params.provider.CsvSource;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import java.util.UUID;
@@ -119,7 +119,7 @@ class BoardControllerTest {
     }
 
     /**
-     * 기본 페이지 값과 이미지 명세의 응답 필드가 유지되는지 검증한다.
+     * 기본 페이지 값과 보드 목록, 다음 데이터 존재 여부를 반환하는지 검증한다.
      */
     @Test
     void 목록_조회는_기본_페이지와_보드_정보를_반환한다() throws Exception {
@@ -127,7 +127,7 @@ class BoardControllerTest {
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 9, 0);
         var board = new BoardResponse(2L, 1L, "Board API", 1, now, now);
         when(service.getAll(USER_ID, PROJECT_CODE, 0, 20))
-                .thenReturn(new BoardPageResponse(List.of(board), 0, 20, 1, 1));
+                .thenReturn(new BoardSliceResponse(List.of(board), 0, 20, true));
 
         // when / then
         mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE))
@@ -140,15 +140,16 @@ class BoardControllerTest {
                 .andExpect(jsonPath("$.items[0].updatedAt").value("2026-09-14T09:00:00"))
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.size").value(20))
-                .andExpect(jsonPath("$.totalElements").value(1))
-                .andExpect(jsonPath("$.totalPages").value(1));
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.totalElements").doesNotExist())
+                .andExpect(jsonPath("$.totalPages").doesNotExist());
     }
 
     @Test
     void 목록_조회는_요청한_페이지와_크기를_전달한다() throws Exception {
         // given
         when(service.getAll(USER_ID, PROJECT_CODE, 2, 5))
-                .thenReturn(new BoardPageResponse(List.of(), 2, 5, 0, 0));
+                .thenReturn(new BoardSliceResponse(List.of(), 2, 5, false));
 
         // when / then
         mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE)
@@ -156,7 +157,8 @@ class BoardControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isEmpty())
                 .andExpect(jsonPath("$.page").value(2))
-                .andExpect(jsonPath("$.size").value(5));
+                .andExpect(jsonPath("$.size").value(5))
+                .andExpect(jsonPath("$.hasNext").value(false));
         verify(service).getAll(USER_ID, PROJECT_CODE, 2, 5);
     }
 
