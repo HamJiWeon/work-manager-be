@@ -145,6 +145,8 @@ class ProjectServiceImplTest {
             ProjectCreateRequest request = new ProjectCreateRequest("업무 관리", prefix, null);
             Project other = Project.create("TASK_" + UUID.randomUUID(), "다른 프로젝트", null);
             Project existing = Project.create("WORK_" + UUID.randomUUID(), "기존 프로젝트", null);
+            User creator = User.create("생성자", "creator@example.com", null);
+            when(userRepository.findById(userId)).thenReturn(Optional.of(creator));
             when(projectRepository.findByUser_Id(userId)).thenReturn(List.of(other, existing));
 
             // when
@@ -169,6 +171,8 @@ class ProjectServiceImplTest {
             Project existing = Project.create("WORKFLOW_" + UUID.randomUUID(), "기존 프로젝트", null);
             Project savedProject = mock(Project.class);
             ProjectResponse expectedResponse = mock(ProjectResponse.class);
+            User creator = User.create("생성자", "creator@example.com", null);
+            when(userRepository.findById(userId)).thenReturn(Optional.of(creator));
             when(projectRepository.findByUser_Id(userId)).thenReturn(List.of(existing));
             when(projectRepository.save(any(Project.class))).thenReturn(savedProject);
             when(mapper.toResponse(savedProject)).thenReturn(expectedResponse);
