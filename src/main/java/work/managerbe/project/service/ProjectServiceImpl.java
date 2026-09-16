@@ -37,28 +37,23 @@ public class ProjectServiceImpl implements ProjectService{
     @Override
     @Transactional
     public ProjectResponse create(UUID userId ,ProjectCreateRequest request) {
-        if(request.cardPrefix() == null || request.name() == null || request.cardPrefix().isBlank() || request.name().isBlank()) {
-            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
-        }
-        if(request.cardPrefix().contains("_")) {
+        projectCodeValidation(request);
+        projectNameValidation(request);
+        userIdValidation(userId);
+        if(request.code().contains("_")) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_PREFIX);
         }
 
-        if (userId == null) {
-            throw UserException.of(UserErrorCode.USER_NOT_FOUND);
-        }
+
         User creator = userRepository.findById(userId)
                 .orElseThrow(() -> UserException.of(UserErrorCode.USER_NOT_FOUND));
 
-        projectRepository.findByUser_Id(userId).stream()
-                .filter(a -> a.cardPrefix(a.getCode()).equalsIgnoreCase(request.cardPrefix()))
-                .findFirst()
-                .ifPresent(project -> {
-                    throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_PREFIX);
-                });
+        String code = request.code().toUpperCase();
+        if (projectRepository.existsByCreator_IdAndCode(userId, code)) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_PREFIX);
+        }
 
-        String code = request.cardPrefix().toUpperCase() + "_" + UUID.randomUUID();
-        Project project = Project.create(code, request.name(), request.description());
+        Project project = Project.create(creator, code, request.name(), request.description());
         Project savedProject = projectRepository.save(project);
         memberRepository.save(Member.create(creator, savedProject, CREATOR_ROLE));
         return mapper.toResponse(savedProject);
@@ -66,18 +61,34 @@ public class ProjectServiceImpl implements ProjectService{
 
     @Override
     public ProjectResponse get(UUID userId, String code) {
+        userIdValidation(userId);
         if(code == null || code.isBlank()) {
-            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
-        }
-        if(userId == null) {
-            throw UserException.of(UserErrorCode.USER_NOT_FOUND);
+            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE);
         }
 
         Project project = projectRepository.findByUser_Id(userId).stream()
-                .filter(a -> a.cardPrefix(a.getCode()).equals(code))
+                .filter(p -> p.getCode().equals(code))
                 .findFirst()
                 .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
         return mapper.toResponse(project);
+    }
+
+    private static void userIdValidation(UUID userId) {
+        if (userId == null) {
+            throw UserException.of(UserErrorCode.USER_NOT_FOUND);
+        }
+    }
+
+    private static void projectNameValidation(ProjectCreateRequest request) {
+        if(request.name() == null || request.name().isBlank()) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_NAME);
+        }
+    }
+
+    private static void projectCodeValidation(ProjectCreateRequest request) {
+        if(request.code() == null || request.code().isBlank()) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE);
+        }
     }
 }
