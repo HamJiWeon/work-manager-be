@@ -12,6 +12,11 @@ import work.managerbe.project.domain.Project;
 
 public interface ProjectRepository extends JpaRepository<Project, Long> {
     /**
+     * 목록 조회에 사용할 프로젝트를 코드로 조회한다.
+     */
+    Optional<Project> findByCode(String code);
+
+    /**
      * 코드로 프로젝트를 조회하고 행을 잠가 같은 프로젝트의 보드 생성 순서 계산을 직렬화한다.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

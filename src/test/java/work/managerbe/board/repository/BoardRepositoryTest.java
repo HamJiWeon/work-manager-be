@@ -10,6 +10,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.BoardCreateRequest;
+import work.managerbe.board.dto.BoardResponse;
 import work.managerbe.board.service.BoardService;
 import work.managerbe.user.domain.User;
 import work.managerbe.project.domain.Project;
@@ -244,5 +245,87 @@ class BoardRepositoryTest {
         assertThatThrownBy(() -> boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("보드")))
                 .isInstanceOf(AccessDeniedException.class);
         assertThat(boardRepository.count()).isZero();
+    }
+
+    /**
+     * 대상 프로젝트만 정렬해 페이지를 나누고 범위 밖 페이지에서도 전체 개수를 유지한다.
+     */
+    @Test
+    void 코드로_보드_목록을_정렬하고_페이지로_조회한다() {
+        // given
+        User user = User.create("조회자", "board-list@example.com", null);
+        Project project = Project.create("LIST", "목록", null);
+        Project other = Project.create("OTHER_LIST", "다른 프로젝트", null);
+        entityManager.persist(user);
+        entityManager.persist(project);
+        entityManager.persist(other);
+        entityManager.persist(Member.create(user, project, "MEMBER"));
+        Board first = boardRepository.save(project.addBoard("첫 보드"));
+        Board second = boardRepository.save(project.addBoard("둘째 보드"));
+        Board third = boardRepository.save(project.addBoard("셋째 보드"));
+        boardRepository.save(other.addBoard("제외할 보드"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        var firstPage = boardService.getAll(user.getId(), project.getCode(), 0, 2);
+        var secondPage = boardService.getAll(user.getId(), project.getCode(), 1, 2);
+        var outsidePage = boardService.getAll(user.getId(), project.getCode(), 2, 2);
+
+        // then
+        assertThat(firstPage.items()).extracting(BoardResponse::id)
+                .containsExactly(first.getId(), second.getId());
+        assertThat(firstPage.items()).extracting(BoardResponse::sortOrder)
+                .containsExactly(0, 1);
+        assertThat(firstPage.items()).extracting(BoardResponse::projectId)
+                .containsOnly(project.getId());
+        assertThat(firstPage.page()).isZero();
+        assertThat(firstPage.size()).isEqualTo(2);
+        assertThat(firstPage.totalElements()).isEqualTo(3);
+        assertThat(firstPage.totalPages()).isEqualTo(2);
+        assertThat(secondPage.items()).extracting(BoardResponse::id)
+                .containsExactly(third.getId());
+        assertThat(secondPage.page()).isEqualTo(1);
+        assertThat(outsidePage.items()).isEmpty();
+        assertThat(outsidePage.totalElements()).isEqualTo(3);
+        assertThat(outsidePage.totalPages()).isEqualTo(2);
+    }
+
+    @Test
+    void 보드가_없는_프로젝트는_빈_페이지를_반환한다() {
+        // given
+        User user = User.create("조회자", "empty-list@example.com", null);
+        Project project = Project.create("EMPTY_LIST", "빈 목록", null);
+        entityManager.persist(user);
+        entityManager.persist(project);
+        entityManager.persist(Member.create(user, project, "MEMBER"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        var response = boardService.getAll(user.getId(), project.getCode(), 0, 20);
+
+        // then
+        assertThat(response.items()).isEmpty();
+        assertThat(response.totalElements()).isZero();
+        assertThat(response.totalPages()).isZero();
+    }
+
+    @Test
+    void 탈퇴한_멤버는_보드_목록_조회를_거절한다() {
+        // given
+        User user = User.create("탈퇴자", "left-list@example.com", null);
+        Project project = Project.create("LEFT_LIST", "목록", null);
+        entityManager.persist(user);
+        entityManager.persist(project);
+        Member member = Member.create(user, project, "MEMBER");
+        entityManager.persist(member);
+        member.leave(member.getJoinedAt());
+        entityManager.flush();
+        entityManager.clear();
+
+        // when / then
+        assertThatThrownBy(() -> boardService.getAll(user.getId(), project.getCode(), 0, 20))
+                .isInstanceOf(AccessDeniedException.class);
     }
 }

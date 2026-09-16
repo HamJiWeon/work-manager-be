@@ -1,6 +1,7 @@
 package work.managerbe.board.service;
 
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -8,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardResponse;
+import work.managerbe.board.dto.BoardPageResponse;
 import work.managerbe.board.repository.BoardRepository;
 import work.managerbe.global.exception.board.BoardErrorCode;
 import work.managerbe.global.exception.board.BoardException;
@@ -48,6 +50,26 @@ public class BoardServiceImpl implements BoardService {
 
         Board board = project.addBoard(request.name());
         return BoardResponse.from(boardRepository.save(board));
+    }
+
+    /**
+     * 사용자와 프로젝트의 활성 멤버 여부를 확인한 뒤 잠금 없이 보드 페이지를 조회한다.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public BoardPageResponse getAll(UUID userId, String code, int page, int size) {
+        userValidate(userId);
+        projectValidate(code);
+
+        Project project = projectRepository.findByCode(code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+
+        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(userId, project.getId())) {
+            throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 조회할 수 있습니다.");
+        }
+
+        return BoardPageResponse.from(boardRepository.findByProject_IdOrderBySortOrderAscIdAsc(
+                project.getId(), PageRequest.of(page, size)));
     }
 
     private static void projectValidate(String code) {

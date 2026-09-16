@@ -1,6 +1,10 @@
 package work.managerbe.board.controller;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import work.managerbe.board.dto.BoardPageResponse;
+import org.junit.jupiter.params.provider.CsvSource;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -112,5 +116,79 @@ class BoardControllerTest {
                         .content("{\"name\":\"보드\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    /**
+     * 기본 페이지 값과 이미지 명세의 응답 필드가 유지되는지 검증한다.
+     */
+    @Test
+    void 목록_조회는_기본_페이지와_보드_정보를_반환한다() throws Exception {
+        // given
+        LocalDateTime now = LocalDateTime.of(2026, 9, 14, 9, 0);
+        var board = new BoardResponse(2L, 1L, "Board API", 1, now, now);
+        when(service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+                .thenReturn(new BoardPageResponse(List.of(board), 0, 20, 1, 1));
+
+        // when / then
+        mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(2))
+                .andExpect(jsonPath("$.items[0].projectId").value(1))
+                .andExpect(jsonPath("$.items[0].name").value("Board API"))
+                .andExpect(jsonPath("$.items[0].sortOrder").value(1))
+                .andExpect(jsonPath("$.items[0].createdAt").value("2026-09-14T09:00:00"))
+                .andExpect(jsonPath("$.items[0].updatedAt").value("2026-09-14T09:00:00"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1));
+    }
+
+    @Test
+    void 목록_조회는_요청한_페이지와_크기를_전달한다() throws Exception {
+        // given
+        when(service.getAll(USER_ID, PROJECT_CODE, 2, 5))
+                .thenReturn(new BoardPageResponse(List.of(), 2, 5, 0, 0));
+
+        // when / then
+        mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE)
+                        .param("page", "2").param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(5));
+        verify(service).getAll(USER_ID, PROJECT_CODE, 2, 5);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"-1,20", "0,0", "0,-1", "abc,20", "0,abc"})
+    void 잘못된_목록_페이지는_400을_반환한다(String page, String size) throws Exception {
+        // given / when / then
+        mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE)
+                        .param("page", page).param("size", size))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void 목록_조회_권한이_없으면_403을_반환한다() throws Exception {
+        // given
+        when(service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+                .thenThrow(new AccessDeniedException("활성 멤버가 아닙니다."));
+
+        // when / then
+        mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 목록_조회_프로젝트가_없으면_404를_반환한다() throws Exception {
+        // given
+        when(service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+                .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+
+        // when / then
+        mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE))
+                .andExpect(status().isNotFound());
     }
 }

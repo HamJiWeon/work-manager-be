@@ -182,4 +182,44 @@ class BoardServiceImplTest {
         verifyNoInteractions(boardRepository);
     }
 
+
+    /**
+     * 활성 멤버가 아니면 보드 조회 전에 거절하고 생성용 잠금을 사용하지 않는다.
+     */
+    @Test
+    void 활성_멤버가_아니면_목록을_조회하지_않는다() {
+        // given
+        Project project = spy(Project.create(PROJECT_CODE, "프로젝트", null));
+        doReturn(PROJECT_ID).when(project).getId();
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCode(PROJECT_CODE)).thenReturn(Optional.of(project));
+
+        // when / then
+        assertThatThrownBy(() -> service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(memberRepository).existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID);
+        verify(projectRepository, never()).findByCodeForUpdate(any());
+        verifyNoInteractions(boardRepository);
+    }
+
+    @Test
+    void 목록_조회시_없는_사용자는_거절한다() {
+        // given / when / then
+        assertThatThrownBy(() -> service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+                .isInstanceOfSatisfying(UserException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+        verifyNoInteractions(projectRepository, memberRepository, boardRepository);
+    }
+
+    @Test
+    void 목록_조회시_없는_프로젝트는_거절한다() {
+        // given
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+                .isInstanceOfSatisfying(ProjectException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
+        verifyNoInteractions(memberRepository, boardRepository);
+    }
 }
