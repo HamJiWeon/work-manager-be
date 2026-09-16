@@ -29,6 +29,9 @@ public class ProjectServiceImpl implements ProjectService{
         if(request.cardPrefix() == null || request.name() == null || request.cardPrefix().isBlank() || request.name().isBlank()) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
         }
+        if(request.cardPrefix().contains("_")) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_PREFIX);
+        }
 
         // memberService에 사용자 할당 로직 추후 추가
 
