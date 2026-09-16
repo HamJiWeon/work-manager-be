@@ -21,7 +21,7 @@ public class ProjectController {
 
     @PostMapping("/projects")
     public ResponseEntity<ProjectResponse> create(
-            @PathVariable UUID userId,
+            @PathVariable("userId") UUID userId,
             @RequestBody ProjectCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(projectService.create(userId, request));
     }
