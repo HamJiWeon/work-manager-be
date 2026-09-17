@@ -9,5 +9,5 @@ public interface ProjectService {
 
     ProjectResponse create(UUID userId, ProjectCreateRequest request);
 
-    ProjectResponse get(UUID userId, String code);
+    ProjectResponse get(UUID creatorId, String code);
 }

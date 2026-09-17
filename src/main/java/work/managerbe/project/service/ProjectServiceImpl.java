@@ -1,6 +1,8 @@
 package work.managerbe.project.service;
 
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.global.exception.project.ProjectErrorCode;
@@ -54,22 +56,32 @@ public class ProjectServiceImpl implements ProjectService{
         }
 
         Project project = Project.create(creator, code, request.name(), request.description());
-        Project savedProject = projectRepository.save(project);
+        Project savedProject;
+        try {
+            savedProject = projectRepository.saveAndFlush(project);
+        } catch (DataIntegrityViolationException e) {
+            if (e.getCause() instanceof ConstraintViolationException violation
+                    && "uk_projects_user_code".equalsIgnoreCase(
+                    violation.getConstraintName())) {
+                throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_PREFIX);
+            }
+            throw e;
+        }
         memberRepository.save(Member.create(creator, savedProject, CREATOR_ROLE));
         return mapper.toResponse(savedProject);
     }
 
     @Override
-    public ProjectResponse get(UUID userId, String code) {
-        userIdValidation(userId);
+    public ProjectResponse get(UUID creatorId, String code) {
+        userIdValidation(creatorId);
         if(code == null || code.isBlank()) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE);
         }
 
-        Project project = projectRepository.findByUser_Id(userId).stream()
-                .filter(p -> p.getCode().equals(code))
-                .findFirst()
-                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        Project project = projectRepository
+                .findByCreator_IdAndCode(creatorId, code)
+                .orElseThrow(() ->
+                        ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
         return mapper.toResponse(project);
     }

@@ -14,6 +14,8 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 
     boolean existsByCreator_IdAndCode(UUID creatorId, String code);
 
+    Optional<Project> findByCreator_IdAndCode(UUID creatorId, String code);
+
     /**
      * 프로젝트 행을 잠가 같은 프로젝트의 보드 생성 순서 계산을 직렬화한다.
      */
