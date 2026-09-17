@@ -19,7 +19,12 @@ import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.mapper.ProjectMapper;
 import work.managerbe.project.repository.ProjectRepository;
 
-import java.util.List;
+import java.sql.SQLException;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import java.util.Optional;
 import work.managerbe.member.domain.Member;
 import work.managerbe.member.repository.MemberRepository;
@@ -108,7 +113,7 @@ class ProjectServiceImplTest {
             ProjectResponse expectedResponse = mock(ProjectResponse.class);
 
             when(projectRepository.existsByCreator_IdAndCode(userId, "WORK")).thenReturn(false);
-            when(projectRepository.save(any(Project.class)))
+            when(projectRepository.saveAndFlush(any(Project.class)))
                     .thenReturn(savedProject);
             when(mapper.toResponse(savedProject))
                     .thenReturn(expectedResponse);
@@ -120,7 +125,7 @@ class ProjectServiceImplTest {
                     ArgumentCaptor.forClass(Project.class);
 
             verify(projectRepository).existsByCreator_IdAndCode(userId, "WORK");
-            verify(projectRepository).save(captor.capture());
+            verify(projectRepository).saveAndFlush(captor.capture());
 
             Project project = captor.getValue();
 
@@ -158,9 +163,9 @@ class ProjectServiceImplTest {
             );
 
             // then
-            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_DUPLICATE_PREFIX);
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_DUPLICATE_CODE);
             verify(projectRepository).existsByCreator_IdAndCode(userId, "WORK");
-            verify(projectRepository, never()).save(any(Project.class));
+            verify(projectRepository, never()).saveAndFlush(any(Project.class));
             verifyNoInteractions(memberRepository, mapper);
         }
 
@@ -176,7 +181,7 @@ class ProjectServiceImplTest {
             Project savedProject = mock(Project.class);
             IllegalStateException failure = new IllegalStateException("멤버 저장 실패");
             when(userRepository.findById(userId)).thenReturn(Optional.of(creator));
-            when(projectRepository.save(any(Project.class))).thenReturn(savedProject);
+            when(projectRepository.saveAndFlush(any(Project.class))).thenReturn(savedProject);
             when(memberRepository.save(any(Member.class))).thenThrow(failure);
 
             // when
@@ -186,6 +191,77 @@ class ProjectServiceImplTest {
             // then
             assertThat(exception).isSameAs(failure);
             verifyNoInteractions(mapper);
+        }
+
+        /**
+         * 사전 검사를 통과한 뒤 DB 유니크 제약에 걸리는 경합 경로의 예외 변환을 검증한다.
+         */
+        @Test
+        void 저장시_코드_유니크_위반이면_중복_예외로_변환한다() {
+            // given
+            UUID userId = UUID.randomUUID();
+            User creator = User.create("생성자", "creator@example.com", null);
+            ProjectCreateRequest request = new ProjectCreateRequest("work", "업무 관리", null);
+            var violation = new ConstraintViolationException("중복", new SQLException("중복", "23505"),
+                    "uk_projects_user_code");
+            var failure = new DataIntegrityViolationException("저장 실패", violation);
+            when(userRepository.findById(userId)).thenReturn(Optional.of(creator));
+            when(projectRepository.existsByCreator_IdAndCode(userId, "WORK")).thenReturn(false);
+            when(projectRepository.saveAndFlush(any(Project.class))).thenThrow(failure);
+
+            // when
+            ProjectException exception = assertThrows(ProjectException.class,
+                    () -> projectService.create(userId, request));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_DUPLICATE_CODE);
+            assertThat(exception.getErrorCode().getHttpStatus()).isEqualTo(HttpStatus.CONFLICT);
+            verifyNoInteractions(memberRepository, mapper);
+        }
+
+        /**
+         * 다른 제약 또는 이름을 알 수 없는 제약 위반은 코드 중복으로 바꾸지 않는다.
+         */
+        @ParameterizedTest
+        @NullSource
+        @ValueSource(strings = {"fk_projects_user", "uk_other_constraint"})
+        void 다른_제약_위반은_원래_예외를_전달한다(String constraintName) {
+            // given
+            UUID userId = UUID.randomUUID();
+            User creator = User.create("생성자", "creator@example.com", null);
+            var violation = new ConstraintViolationException("제약 위반", new SQLException("제약 위반"), constraintName);
+            var failure = new DataIntegrityViolationException("저장 실패", violation);
+            when(userRepository.findById(userId)).thenReturn(Optional.of(creator));
+            when(projectRepository.saveAndFlush(any(Project.class))).thenThrow(failure);
+
+            // when
+            DataIntegrityViolationException exception = assertThrows(DataIntegrityViolationException.class,
+                    () -> projectService.create(userId, new ProjectCreateRequest("WORK", "업무 관리", null)));
+
+            // then
+            assertThat(exception).isSameAs(failure);
+            verifyNoInteractions(memberRepository, mapper);
+        }
+
+        /**
+         * Hibernate 제약 위반 원인이 없는 저장 오류도 원본 그대로 전달한다.
+         */
+        @Test
+        void 제약_위반_원인이_없으면_원래_예외를_전달한다() {
+            // given
+            UUID userId = UUID.randomUUID();
+            User creator = User.create("생성자", "creator@example.com", null);
+            var failure = new DataIntegrityViolationException("저장 실패");
+            when(userRepository.findById(userId)).thenReturn(Optional.of(creator));
+            when(projectRepository.saveAndFlush(any(Project.class))).thenThrow(failure);
+
+            // when
+            DataIntegrityViolationException exception = assertThrows(DataIntegrityViolationException.class,
+                    () -> projectService.create(userId, new ProjectCreateRequest("WORK", "업무 관리", null)));
+
+            // then
+            assertThat(exception).isSameAs(failure);
+            verifyNoInteractions(memberRepository, mapper);
         }
 
         @Test
@@ -203,7 +279,7 @@ class ProjectServiceImplTest {
             );
 
             // then
-            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_INVALID_PREFIX);
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE_FORMAT);
             assertThat(exception.getErrorCode().getHttpStatus())
                     .isEqualTo(HttpStatus.BAD_REQUEST);
             verifyNoInteractions(projectRepository, mapper);
@@ -302,10 +378,9 @@ class ProjectServiceImplTest {
         void 프로젝트_단건_조회() {
             // given
             UUID userId = UUID.randomUUID();
-            Project other = Project.create(User.create("생성자", "creator@example.com", null), "WORKFLOW", "다른 프로젝트", null);
             Project project = Project.create(User.create("생성자", "creator@example.com", null), "WORK", "업무 관리", null);
             ProjectResponse expectedResponse = mock(ProjectResponse.class);
-            when(projectRepository.findByUser_Id(userId)).thenReturn(List.of(other, project));
+            when(projectRepository.findByCreator_IdAndCode(userId, "WORK")).thenReturn(Optional.of(project));
             when(mapper.toResponse(project)).thenReturn(expectedResponse);
 
             // when
@@ -313,9 +388,9 @@ class ProjectServiceImplTest {
 
             // then
             assertThat(response).isSameAs(expectedResponse);
-            verify(projectRepository).findByUser_Id(userId);
+            verify(projectRepository).findByCreator_IdAndCode(userId, "WORK");
             verify(mapper).toResponse(project);
-            verify(mapper, never()).toResponse(other);
+            verify(projectRepository, never()).findByUser_Id(any());
         }
 
         @Test
@@ -323,8 +398,7 @@ class ProjectServiceImplTest {
         void 조회할_코드가_없음() {
             // given
             UUID userId = UUID.randomUUID();
-            Project project = Project.create(User.create("생성자", "creator@example.com", null), "WORKFLOW", "다른 프로젝트", null);
-            when(projectRepository.findByUser_Id(userId)).thenReturn(List.of(project));
+            when(projectRepository.findByCreator_IdAndCode(userId, "WORK")).thenReturn(Optional.empty());
 
             // when
             ProjectException exception = assertThrows(
@@ -337,22 +411,27 @@ class ProjectServiceImplTest {
             verifyNoInteractions(mapper);
         }
 
+        /**
+         * 같은 코드라도 요청한 생성자의 프로젝트를 각각 반환한다.
+         */
         @Test
-        @DisplayName("사용자의 프로젝트가 없으면 프로젝트를 찾을 수 없다는 예외가 발생한다.")
-        void 조회할_프로젝트가_없음() {
+        void 같은_코드의_프로젝트를_생성자별로_구분해_조회한다() {
             // given
-            UUID userId = UUID.randomUUID();
-            when(projectRepository.findByUser_Id(userId)).thenReturn(List.of());
+            UUID firstId = UUID.randomUUID();
+            UUID secondId = UUID.randomUUID();
+            Project first = Project.create(User.create("첫 생성자", "first@example.com", null), "WORK", "첫 프로젝트", null);
+            Project second = Project.create(User.create("둘째 생성자", "second@example.com", null), "WORK", "둘째 프로젝트", null);
+            ProjectResponse firstResponse = mock(ProjectResponse.class);
+            ProjectResponse secondResponse = mock(ProjectResponse.class);
+            when(projectRepository.findByCreator_IdAndCode(firstId, "WORK")).thenReturn(Optional.of(first));
+            when(projectRepository.findByCreator_IdAndCode(secondId, "WORK")).thenReturn(Optional.of(second));
+            when(mapper.toResponse(first)).thenReturn(firstResponse);
+            when(mapper.toResponse(second)).thenReturn(secondResponse);
 
-            // when
-            ProjectException exception = assertThrows(
-                    ProjectException.class,
-                    () -> projectService.get(userId, "WORK")
-            );
-
-            // then
-            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND);
-            verifyNoInteractions(mapper);
+            // when / then
+            assertThat(projectService.get(firstId, "WORK")).isSameAs(firstResponse);
+            assertThat(projectService.get(secondId, "WORK")).isSameAs(secondResponse);
+            verify(projectRepository, never()).findByUser_Id(any());
         }
 
         @Test

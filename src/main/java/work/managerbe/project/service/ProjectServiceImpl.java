@@ -19,6 +19,7 @@ import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
 
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -43,16 +44,16 @@ public class ProjectServiceImpl implements ProjectService{
         projectNameValidation(request);
         userIdValidation(userId);
         if(request.code().contains("_")) {
-            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_PREFIX);
+            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_FORMAT);
         }
 
 
         User creator = userRepository.findById(userId)
                 .orElseThrow(() -> UserException.of(UserErrorCode.USER_NOT_FOUND));
 
-        String code = request.code().toUpperCase();
+        String code = request.code().toUpperCase(Locale.ROOT);
         if (projectRepository.existsByCreator_IdAndCode(userId, code)) {
-            throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_PREFIX);
+            throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_CODE);
         }
 
         Project project = Project.create(creator, code, request.name(), request.description());
@@ -63,7 +64,7 @@ public class ProjectServiceImpl implements ProjectService{
             if (e.getCause() instanceof ConstraintViolationException violation
                     && "uk_projects_user_code".equalsIgnoreCase(
                     violation.getConstraintName())) {
-                throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_PREFIX);
+                throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_CODE);
             }
             throw e;
         }

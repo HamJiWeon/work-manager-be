@@ -30,7 +30,7 @@ class ProjectExceptionTest {
     @Test
     void 접두사_중복_오류는_CONFLICT_상태를_제공한다() {
         // given
-        ProjectErrorCode errorCode = ProjectErrorCode.PROJECT_DUPLICATE_PREFIX;
+        ProjectErrorCode errorCode = ProjectErrorCode.PROJECT_DUPLICATE_CODE;
 
         // when
         ProjectException exception = ProjectException.of(errorCode);
