@@ -73,16 +73,18 @@ public class ProjectServiceImpl implements ProjectService{
     }
 
     @Override
-    public ProjectResponse get(UUID creatorId, String code) {
+    public ProjectResponse get(UUID creatorId, String code, UUID requesterId) {
         userIdValidation(creatorId);
+        userIdValidation(requesterId);
         if(code == null || code.isBlank()) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE);
         }
 
         Project project = projectRepository
-                .findByCreator_IdAndCode(creatorId, code)
+                .findAccessibleProject(creatorId, code, requesterId)
                 .orElseThrow(() ->
                         ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+
 
         return mapper.toResponse(project);
     }

@@ -37,9 +37,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-/**
- * 생성자별 코드 중복 검사, 생성자와 OWNER 저장 및 입력 검증을 검증한다.
- */
 @ExtendWith(MockitoExtension.class)
 class ProjectServiceImplTest {
 
@@ -373,37 +370,38 @@ class ProjectServiceImplTest {
     @Nested
     @DisplayName("get")
     class Get {
+        private final UUID requesterId = UUID.randomUUID();
         @Test
-        @DisplayName("사용자의 프로젝트 중 코드가 정확히 일치하는 프로젝트를 반환한다.")
+        @DisplayName("요청자가 접근 가능한 생성자와 코드의 프로젝트를 반환한다.")
         void 프로젝트_단건_조회() {
             // given
-            UUID userId = UUID.randomUUID();
+            UUID creatorId = UUID.randomUUID();
             Project project = Project.create(User.create("생성자", "creator@example.com", null), "WORK", "업무 관리", null);
             ProjectResponse expectedResponse = mock(ProjectResponse.class);
-            when(projectRepository.findByCreator_IdAndCode(userId, "WORK")).thenReturn(Optional.of(project));
+            when(projectRepository.findAccessibleProject(creatorId, "WORK", requesterId)).thenReturn(Optional.of(project));
             when(mapper.toResponse(project)).thenReturn(expectedResponse);
 
             // when
-            ProjectResponse response = projectService.get(userId, "WORK");
+            ProjectResponse response = projectService.get(creatorId, "WORK", requesterId);
 
             // then
             assertThat(response).isSameAs(expectedResponse);
-            verify(projectRepository).findByCreator_IdAndCode(userId, "WORK");
+            verify(projectRepository).findAccessibleProject(creatorId, "WORK", requesterId);
             verify(mapper).toResponse(project);
             verify(projectRepository, never()).findByUser_Id(any());
         }
 
         @Test
-        @DisplayName("일치하는 코드가 없으면 프로젝트를 찾을 수 없다는 예외가 발생한다.")
+        @DisplayName("프로젝트가 없거나 접근할 수 없으면 프로젝트 조회를 거절한다.")
         void 조회할_코드가_없음() {
             // given
-            UUID userId = UUID.randomUUID();
-            when(projectRepository.findByCreator_IdAndCode(userId, "WORK")).thenReturn(Optional.empty());
+            UUID creatorId = UUID.randomUUID();
+            when(projectRepository.findAccessibleProject(creatorId, "WORK", requesterId)).thenReturn(Optional.empty());
 
             // when
             ProjectException exception = assertThrows(
                     ProjectException.class,
-                    () -> projectService.get(userId, "WORK")
+                    () -> projectService.get(creatorId, "WORK", requesterId)
             );
 
             // then
@@ -423,14 +421,14 @@ class ProjectServiceImplTest {
             Project second = Project.create(User.create("둘째 생성자", "second@example.com", null), "WORK", "둘째 프로젝트", null);
             ProjectResponse firstResponse = mock(ProjectResponse.class);
             ProjectResponse secondResponse = mock(ProjectResponse.class);
-            when(projectRepository.findByCreator_IdAndCode(firstId, "WORK")).thenReturn(Optional.of(first));
-            when(projectRepository.findByCreator_IdAndCode(secondId, "WORK")).thenReturn(Optional.of(second));
+            when(projectRepository.findAccessibleProject(firstId, "WORK", requesterId)).thenReturn(Optional.of(first));
+            when(projectRepository.findAccessibleProject(secondId, "WORK", requesterId)).thenReturn(Optional.of(second));
             when(mapper.toResponse(first)).thenReturn(firstResponse);
             when(mapper.toResponse(second)).thenReturn(secondResponse);
 
             // when / then
-            assertThat(projectService.get(firstId, "WORK")).isSameAs(firstResponse);
-            assertThat(projectService.get(secondId, "WORK")).isSameAs(secondResponse);
+            assertThat(projectService.get(firstId, "WORK", requesterId)).isSameAs(firstResponse);
+            assertThat(projectService.get(secondId, "WORK", requesterId)).isSameAs(secondResponse);
             verify(projectRepository, never()).findByUser_Id(any());
         }
 
@@ -438,12 +436,12 @@ class ProjectServiceImplTest {
         @DisplayName("조회할 코드가 null이면 예외가 발생한다.")
         void 조회_코드_누락() {
             // given
-            UUID userId = UUID.randomUUID();
+            UUID creatorId = UUID.randomUUID();
 
             // when
             ProjectException exception = assertThrows(
                     ProjectException.class,
-                    () -> projectService.get(userId, null)
+                    () -> projectService.get(creatorId, null, requesterId)
             );
 
             // then
@@ -455,12 +453,12 @@ class ProjectServiceImplTest {
         @DisplayName("조회할 코드가 공백이면 예외가 발생한다.")
         void 조회_코드_공백() {
             // given
-            UUID userId = UUID.randomUUID();
+            UUID creatorId = UUID.randomUUID();
 
             // when
             ProjectException exception = assertThrows(
                     ProjectException.class,
-                    () -> projectService.get(userId, "   ")
+                    () -> projectService.get(creatorId, "   ", requesterId)
             );
 
             // then
@@ -477,8 +475,25 @@ class ProjectServiceImplTest {
             // when
             UserException exception = assertThrows(
                     UserException.class,
-                    () -> projectService.get(null, code)
+                    () -> projectService.get(null, code, requesterId)
             );
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
+            verifyNoInteractions(projectRepository, mapper);
+        }
+
+        /**
+         * 인증 요청자 ID가 없으면 권한 조회를 수행하지 않는다.
+         */
+        @Test
+        void 조회_요청자_ID가_없으면_거절한다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+
+            // when
+            UserException exception = assertThrows(UserException.class,
+                    () -> projectService.get(creatorId, "WORK", null));
 
             // then
             assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);

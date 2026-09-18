@@ -14,8 +14,6 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 
     boolean existsByCreator_IdAndCode(UUID creatorId, String code);
 
-    Optional<Project> findByCreator_IdAndCode(UUID creatorId, String code);
-
     /**
      * 프로젝트 행을 잠가 같은 프로젝트의 보드 생성 순서 계산을 직렬화한다.
      */
@@ -34,4 +32,17 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
         order by m.project.id asc
         """)
     List<Project> findByUser_Id(@Param("userId") UUID userId);
+
+    @Query("""
+    select m.project
+    from Member m
+    where m.project.creator.id = :creatorId
+      and m.project.code = :code
+      and m.user.id = :requesterId
+      and m.leftAt is null
+    """)
+    Optional<Project> findAccessibleProject(
+            @Param("creatorId") UUID creatorId,
+            @Param("code") String code,
+            @Param("requesterId") UUID requesterId);
 }
