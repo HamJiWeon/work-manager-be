@@ -11,6 +11,9 @@ import org.springframework.data.repository.query.Param;
 import work.managerbe.project.domain.Project;
 
 public interface ProjectRepository extends JpaRepository<Project, Long> {
+
+    boolean existsByCreator_IdAndCode(UUID creatorId, String code);
+
     /**
      * 목록 조회에 사용할 프로젝트를 코드로 조회한다.
      */
@@ -41,4 +44,17 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
         order by m.project.id asc
         """)
     List<Project> findByUser_Id(@Param("userId") UUID userId);
+
+    @Query("""
+    select m.project
+    from Member m
+    where m.project.creator.id = :creatorId
+      and m.project.code = :code
+      and m.user.id = :requesterId
+      and m.leftAt is null
+    """)
+    Optional<Project> findAccessibleProject(
+            @Param("creatorId") UUID creatorId,
+            @Param("code") String code,
+            @Param("requesterId") UUID requesterId);
 }

@@ -54,7 +54,7 @@ class BoardConcurrencyTest {
     void 동시_생성은_프로젝트_잠금을_기다리고_중복_없는_순서로_저장된다() throws Exception {
         // given
         User user = User.create("작성자", "concurrency@example.com", null);
-        Project project = Project.create("CONCURRENT", "동시 생성", null);
+        Project project = Project.create(user, "CONCURRENT", "동시 생성", null);
         transaction.executeWithoutResult(status -> {
             entityManager.persist(user);
             entityManager.persist(project);

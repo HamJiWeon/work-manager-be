@@ -1,5 +1,6 @@
 package work.managerbe.board.domain;
 
+import work.managerbe.user.domain.User;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import work.managerbe.global.exception.board.BoardErrorCode;
@@ -57,7 +58,7 @@ class BoardTest {
     @Test
     void 프로젝트_목록에_등록한_순서로_보드를_생성한다() {
         // given
-        Project project = Project.create("TEST", "테스트 프로젝트", null);
+        Project project = Project.create(User.create("생성자", "creator@example.com", null), "TEST", "테스트 프로젝트", null);
 
         // when
         Board board = Board.create(BOARD_NAME, project);
@@ -87,8 +88,8 @@ class BoardTest {
     @Test
     void 보드_등록은_프로젝트_일치와_중복을_검증한다() {
         // given
-        Project project = Project.create("TEST", "프로젝트", null);
-        Project other = Project.create("OTHER", "다른 프로젝트", null);
+        Project project = Project.create(User.create("생성자", "creator@example.com", null), "TEST", "프로젝트", null);
+        Project other = Project.create(User.create("생성자", "creator@example.com", null), "OTHER", "다른 프로젝트", null);
         Board board = Board.create(BOARD_NAME, project);
 
         // when

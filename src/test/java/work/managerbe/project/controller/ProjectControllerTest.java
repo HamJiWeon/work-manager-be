@@ -1,6 +1,12 @@
 package work.managerbe.project.controller;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import java.util.List;
+import work.managerbe.global.exception.user.UserErrorCode;
+import work.managerbe.global.exception.user.UserException;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,10 +59,10 @@ class ProjectControllerTest {
             // given
             UUID userId = UUID.randomUUID();
             ProjectCreateRequest request =
-                    new ProjectCreateRequest("업무 관리", "WORK", "프로젝트 설명");
+                    new ProjectCreateRequest("WORK", "업무 관리", "프로젝트 설명");
 
             ProjectResponse response = new ProjectResponse(
-                    1L, request.cardPrefix() + "_" + UUID.randomUUID(),
+                    1L, request.code(),
                     request.name(), 1L, request.description(),
                     LocalDateTime.now(), LocalDateTime.now()
             );
@@ -83,17 +89,17 @@ class ProjectControllerTest {
             // given
             UUID userId = UUID.randomUUID();
             ProjectCreateRequest request =
-                    new ProjectCreateRequest(null, "WORK", "프로젝트 설명");
+                    new ProjectCreateRequest("WORK", null, "프로젝트 설명");
 
             when(projectService.create(userId, request))
-                    .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_NAME));
+                    .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_INVALID_NAME));
 
             // when & then
             mockMvc.perform(post("/{userId}/projects", userId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.code").value("PROJECT_INVALID_CODE_NAME"));
+                    .andExpect(jsonPath("$.code").value("PROJECT_INVALID_NAME"));
 
             verify(projectService).create(userId, request);
         }
@@ -135,20 +141,22 @@ class ProjectControllerTest {
     class GetProject {
 
         @Test
-        @DisplayName("접두사로 조회하면 200과 프로젝트 정보를 반환한다.")
+        @DisplayName("URL의 생성자와 인증 principal의 요청자를 구분해 조회한다.")
         void 정상_조회시_200_반환() throws Exception {
             // given
-            UUID userId = UUID.randomUUID();
+            UUID creatorId = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+            authenticate(requesterId);
             String code = "WORK";
             ProjectResponse response = new ProjectResponse(
-                    1L, "WORK_550e8400-e29b-41d4-a716-446655440000",
+                    1L, "WORK",
                     "업무 관리", 1L, "프로젝트 설명",
                     LocalDateTime.now(), LocalDateTime.now()
             );
-            when(projectService.get(userId, code)).thenReturn(response);
+            when(projectService.get(creatorId, code, requesterId)).thenReturn(response);
 
             // when & then
-            mockMvc.perform(get("/{userId}/{code}", userId, code))
+            mockMvc.perform(get("/{userId}/{code}", creatorId, code))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(response.id()))
                     .andExpect(jsonPath("$.code").value(response.code()))
@@ -156,41 +164,75 @@ class ProjectControllerTest {
                     .andExpect(jsonPath("$.nextCardNumber").value(response.nextCardNumber()))
                     .andExpect(jsonPath("$.description").value(response.description()));
 
-            verify(projectService).get(userId, code);
+            verify(projectService).get(creatorId, code, requesterId);
         }
 
         @Test
         @DisplayName("프로젝트가 없으면 404를 반환한다.")
         void 프로젝트_없을시_404_반환() throws Exception {
             // given
-            UUID userId = UUID.randomUUID();
+            UUID creatorId = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+            authenticate(requesterId);
             String code = "WORK";
-            when(projectService.get(userId, code))
+            when(projectService.get(creatorId, code, requesterId))
                     .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
             // when & then
-            mockMvc.perform(get("/{userId}/{code}", userId, code))
+            mockMvc.perform(get("/{userId}/{code}", creatorId, code))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.code").value("PROJECT_NOT_FOUND"))
                     .andExpect(jsonPath("$.message").value("프로젝트를 찾을 수 없습니다."));
 
-            verify(projectService).get(userId, code);
+            verify(projectService).get(creatorId, code, requesterId);
         }
 
         @Test
         @DisplayName("사용자 ID가 UUID 형식이 아니면 400을 반환한다.")
         void 사용자_ID_형식_오류시_400_반환() throws Exception {
             // given
-            String userId = "invalid-user-id";
+            String creatorId = "invalid-user-id";
             String code = "WORK";
 
             // when & then
-            mockMvc.perform(get("/{userId}/{code}", userId, code))
+            mockMvc.perform(get("/{userId}/{code}", creatorId, code))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
             verifyNoInteractions(projectService);
         }
+        /**
+         * 인증 principal이 없을 때 경로의 생성자를 요청자로 대신 사용하지 않는다.
+         */
+        @Test
+        void 인증_정보가_없으면_요청자_ID를_null로_전달한다() throws Exception {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            when(projectService.get(creatorId, "WORK", null))
+                    .thenThrow(UserException.of(UserErrorCode.USER_NOT_FOUND));
+
+            // when / then
+            mockMvc.perform(get("/{userId}/{code}", creatorId, "WORK"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
+            verify(projectService).get(creatorId, "WORK", null);
+        }
+
+    }
+
+    /**
+     * 보안 필터가 꺼진 MVC 테스트에서 UUID principal 전달만 검증하도록 인증 정보를 준비한다.
+     * 실제 로그인 처리나 보안 필터의 인증 검증을 대신하지 않는다.
+     */
+    private static void authenticate(UUID requesterId) {
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(requesterId, null, List.of()));
+        SecurityContextHolder.setContext(context);
+    }
+
+    @AfterEach
+    void 인증_정보를_정리한다() {
+        SecurityContextHolder.clearContext();
     }
 
 }

@@ -1,10 +1,7 @@
 package work.managerbe.project.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OrderColumn;
+import jakarta.persistence.*;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -14,6 +11,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import work.managerbe.global.base.BaseEntity;
+import work.managerbe.user.domain.User;
 
 @Entity
 @Getter
@@ -31,6 +29,11 @@ public class Project extends BaseEntity {
     private long nextCardNumber;
 
     private String description;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User creator;
+
 
     /**
      * 양방향 일대다 목록의 인덱스를 Hibernate가 sort_order에 기록한다.
@@ -67,24 +70,21 @@ public class Project extends BaseEntity {
     }
 
     @Builder
-    private Project(String code, String name, long nextCardNumber, String description) {
+    private Project(User creator, String code, String name, long nextCardNumber, String description) {
+        this.creator = creator;
         this.code = code;
         this.name = name;
         this.nextCardNumber = nextCardNumber;
         this.description = description;
     }
 
-    public static Project create(String code, String name, String description) {
+    public static Project create(User creator, String code, String name, String description) {
         return Project.builder()
+                .creator(creator)
                 .code(code)
                 .name(name)
                 .nextCardNumber(1L)
                 .description(description)
                 .build();
-    }
-
-    public String cardPrefix(String code) {
-        String[] prefix = code.split("_");
-        return prefix[0];
     }
 }

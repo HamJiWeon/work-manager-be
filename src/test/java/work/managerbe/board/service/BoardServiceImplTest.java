@@ -1,5 +1,6 @@
 package work.managerbe.board.service;
 
+import work.managerbe.user.domain.User;
 import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
@@ -50,7 +51,7 @@ class BoardServiceImplTest {
     @Test
     void 보드_정렬_순서_한도에_도달하면_저장하지_않는다() {
         // given
-        Project project = spy(Project.create(PROJECT_CODE, "프로젝트", null));
+        Project project = spy(Project.create(User.create("생성자", "creator@example.com", null), PROJECT_CODE, "프로젝트", null));
         List<Board> boards = mock();
         doReturn(boards).when(project).getBoards();
         when(boards.size()).thenReturn(Integer.MAX_VALUE);
@@ -70,7 +71,7 @@ class BoardServiceImplTest {
     @Test
     void 기존_보드_뒤에_요청한_보드를_추가한다() {
         // given
-        Project project = spy(Project.create(PROJECT_CODE, "프로젝트", null));
+        Project project = spy(Project.create(User.create("생성자", "creator@example.com", null), PROJECT_CODE, "프로젝트", null));
         Board existing = project.addBoard("기존 보드");
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         doReturn(PROJECT_ID).when(project).getId();
@@ -94,7 +95,7 @@ class BoardServiceImplTest {
     @Test
     void 활성_멤버가_아니면_보드를_추가하지_않는다() {
         // given
-        Project project = spy(Project.create(PROJECT_CODE, "프로젝트", null));
+        Project project = spy(Project.create(User.create("생성자", "creator@example.com", null), PROJECT_CODE, "프로젝트", null));
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         doReturn(PROJECT_ID).when(project).getId();
         when(projectRepository.findByCodeForUpdate(PROJECT_CODE)).thenReturn(Optional.of(project));
@@ -189,7 +190,7 @@ class BoardServiceImplTest {
     @Test
     void 활성_멤버가_아니면_목록을_조회하지_않는다() {
         // given
-        Project project = spy(Project.create(PROJECT_CODE, "프로젝트", null));
+        Project project = spy(Project.create(User.create("생성자", "creator@example.com", null), PROJECT_CODE, "프로젝트", null));
         doReturn(PROJECT_ID).when(project).getId();
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         when(projectRepository.findByCode(PROJECT_CODE)).thenReturn(Optional.of(project));

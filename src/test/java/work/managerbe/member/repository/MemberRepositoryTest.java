@@ -45,7 +45,7 @@ class MemberRepositoryTest {
     @BeforeEach
     void 사용자와_프로젝트를_저장한다() {
         user = User.create("참여자", "member@example.com", null);
-        project = Project.create("TEST", "테스트 프로젝트", null);
+        project = Project.create(user, "TEST", "테스트 프로젝트", null);
         entityManager.persist(user);
         entityManager.persist(project);
         entityManager.flush();
@@ -127,7 +127,7 @@ class MemberRepositoryTest {
     void 동일_사용자가_서로_다른_프로젝트에_참여할_수_있다() {
         // given
         Member first = memberRepository.saveAndFlush(Member.create(user, project, ROLE));
-        Project otherProject = Project.create("OTHER", "다른 프로젝트", null);
+        Project otherProject = Project.create(user, "OTHER", "다른 프로젝트", null);
         entityManager.persist(otherProject);
 
         // when
