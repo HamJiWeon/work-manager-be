@@ -1,6 +1,7 @@
 package work.managerbe.board.controller;
 
 import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import jakarta.validation.constraints.Min;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -21,24 +22,26 @@ public class BoardController {
     private final BoardService boardService;
 
     /**
-     * 보드 이름을 검증하고 생성 결과를 201 상태와 함께 반환한다.
+     * 생성자와 코드로 프로젝트를 식별하고 인증된 요청자의 보드 생성 결과를 반환한다.
      */
     @PostMapping
     public ResponseEntity<BoardResponse> create(
-            @PathVariable("userId") UUID userId, @PathVariable("code") String code,
+            @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
+            @AuthenticationPrincipal UUID requesterId,
             @Valid @RequestBody BoardCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(boardService.create(userId, code, request));
+                .body(boardService.create(creatorId, code, requesterId, request));
     }
 
     /**
-     * 페이지 번호와 크기를 검증하고 프로젝트의 보드 목록을 반환한다.
+     * 생성자와 코드, 인증된 요청자를 전달하고 페이지 번호와 크기를 검증한다.
      */
     @GetMapping
     public ResponseEntity<BoardSliceResponse> getAll(
-            @PathVariable("userId") UUID userId, @PathVariable("code") String code,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) int size) {
-        return ResponseEntity.ok(boardService.getAll(userId, code, page, size));
+            @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
+            @AuthenticationPrincipal UUID requesterId,
+            @RequestParam(name = "page", defaultValue = "0") @Min(0) int page,
+            @RequestParam(name = "size", defaultValue = "20") @Min(1) int size) {
+        return ResponseEntity.ok(boardService.getAll(creatorId, code, requesterId, page, size));
     }
 }

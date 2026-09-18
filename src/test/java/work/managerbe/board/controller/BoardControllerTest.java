@@ -37,6 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class BoardControllerTest {
     private final MockMvc mvc;
     @MockitoBean BoardService service;
+    private static final UUID REQUESTER_ID = UUID.randomUUID();
     private static final UUID USER_ID = UUID.randomUUID();
     private static final String PROJECT_CODE = "TEST_ABC";
 
@@ -46,7 +47,7 @@ class BoardControllerTest {
     @Test
     void 보드_정렬_순서_한도에_도달하면_409를_반환한다() throws Exception {
         // given
-        when(service.create(eq(USER_ID), eq(PROJECT_CODE), any()))
+        when(service.create(eq(USER_ID), eq(PROJECT_CODE), eq(REQUESTER_ID), any()))
                 .thenThrow(BoardException.of(BoardErrorCode.BOARD_SORT_ORDER_EXHAUSTED));
 
         // when / then
@@ -65,7 +66,7 @@ class BoardControllerTest {
     void 정상_요청은_201과_전체_응답을_반환한다() throws Exception {
         // given
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 9, 0);
-        when(service.create(USER_ID, PROJECT_CODE, new BoardCreateRequest("Board API")))
+        when(service.create(USER_ID, PROJECT_CODE, REQUESTER_ID, new BoardCreateRequest("Board API")))
                 .thenReturn(new BoardResponse(2L, 1L, "Board API", 1, now, now));
         // when & then
         mvc.perform(post("/{userId}/{code}/boards", USER_ID, PROJECT_CODE).contentType(MediaType.APPLICATION_JSON)
@@ -77,7 +78,7 @@ class BoardControllerTest {
                 .andExpect(jsonPath("$.sortOrder").value(1))
                 .andExpect(jsonPath("$.createdAt").value("2026-09-14T09:00:00"))
                 .andExpect(jsonPath("$.updatedAt").value("2026-09-14T09:00:00"));
-        verify(service).create(USER_ID, PROJECT_CODE, new BoardCreateRequest("Board API"));
+        verify(service).create(USER_ID, PROJECT_CODE, REQUESTER_ID, new BoardCreateRequest("Board API"));
     }
 
     @ParameterizedTest
@@ -93,7 +94,7 @@ class BoardControllerTest {
     @Test
     void 없는_프로젝트는_404를_반환한다() throws Exception {
         // given
-        when(service.create(eq(USER_ID), eq(PROJECT_CODE), any()))
+        when(service.create(eq(USER_ID), eq(PROJECT_CODE), eq(REQUESTER_ID), any()))
                 .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
         // when & then
         mvc.perform(post("/{userId}/{code}/boards", USER_ID, PROJECT_CODE).contentType(MediaType.APPLICATION_JSON)
@@ -108,7 +109,7 @@ class BoardControllerTest {
     @Test
     void 프로젝트_참여_권한이_없으면_403을_반환한다() throws Exception {
         // given
-        when(service.create(eq(USER_ID), eq(PROJECT_CODE), any()))
+        when(service.create(eq(USER_ID), eq(PROJECT_CODE), eq(REQUESTER_ID), any()))
                 .thenThrow(new AccessDeniedException("활성 멤버가 아닙니다."));
 
         // when / then
@@ -126,7 +127,7 @@ class BoardControllerTest {
         // given
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 9, 0);
         var board = new BoardResponse(2L, 1L, "Board API", 1, now, now);
-        when(service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 20))
                 .thenReturn(new BoardSliceResponse(List.of(board), 0, 20, true));
 
         // when / then
@@ -148,7 +149,7 @@ class BoardControllerTest {
     @Test
     void 목록_조회는_요청한_페이지와_크기를_전달한다() throws Exception {
         // given
-        when(service.getAll(USER_ID, PROJECT_CODE, 2, 5))
+        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 2, 5))
                 .thenReturn(new BoardSliceResponse(List.of(), 2, 5, false));
 
         // when / then
@@ -159,7 +160,7 @@ class BoardControllerTest {
                 .andExpect(jsonPath("$.page").value(2))
                 .andExpect(jsonPath("$.size").value(5))
                 .andExpect(jsonPath("$.hasNext").value(false));
-        verify(service).getAll(USER_ID, PROJECT_CODE, 2, 5);
+        verify(service).getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 2, 5);
     }
 
     @ParameterizedTest
@@ -175,7 +176,7 @@ class BoardControllerTest {
     @Test
     void 목록_조회_권한이_없으면_403을_반환한다() throws Exception {
         // given
-        when(service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 20))
                 .thenThrow(new AccessDeniedException("활성 멤버가 아닙니다."));
 
         // when / then
@@ -186,11 +187,27 @@ class BoardControllerTest {
     @Test
     void 목록_조회_프로젝트가_없으면_404를_반환한다() throws Exception {
         // given
-        when(service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 20))
                 .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
         // when / then
         mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE))
                 .andExpect(status().isNotFound());
+    }
+
+    /**
+     * 경로의 생성자와 다른 UUID principal을 사용해 요청자가 별도로 전달되는지 검증한다.
+     */
+    @org.junit.jupiter.api.BeforeEach
+    void 요청자_인증_설정() {
+        var context = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                REQUESTER_ID, null, List.of()));
+        org.springframework.security.core.context.SecurityContextHolder.setContext(context);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void 인증_정리() {
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 }

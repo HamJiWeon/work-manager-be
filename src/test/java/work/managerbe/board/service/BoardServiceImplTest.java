@@ -36,6 +36,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 class BoardServiceImplTest {
+    private static final UUID CREATOR_ID = UUID.randomUUID();
     private static final UUID USER_ID = UUID.randomUUID();
     private static final Long PROJECT_ID = 1L;
     private static final String PROJECT_CODE = "TEST";
@@ -57,11 +58,11 @@ class BoardServiceImplTest {
         when(boards.size()).thenReturn(Integer.MAX_VALUE);
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         doReturn(PROJECT_ID).when(project).getId();
-        when(projectRepository.findByCodeForUpdate(PROJECT_CODE)).thenReturn(Optional.of(project));
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE)).thenReturn(Optional.of(project));
         when(memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID)).thenReturn(true);
 
         // when / then
-        assertThatThrownBy(() -> service.create(USER_ID, PROJECT_CODE, new BoardCreateRequest("보드")))
+        assertThatThrownBy(() -> service.create(CREATOR_ID, PROJECT_CODE, USER_ID, new BoardCreateRequest("보드")))
                 .isInstanceOfSatisfying(BoardException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_SORT_ORDER_EXHAUSTED));
         verify(project, never()).registerBoard(any());
@@ -75,11 +76,11 @@ class BoardServiceImplTest {
         Board existing = project.addBoard("기존 보드");
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         doReturn(PROJECT_ID).when(project).getId();
-        when(projectRepository.findByCodeForUpdate(PROJECT_CODE)).thenReturn(Optional.of(project));
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE)).thenReturn(Optional.of(project));
         when(memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID)).thenReturn(true);
         when(boardRepository.save(any(Board.class))).thenAnswer(invocation -> invocation.getArgument(0));
         // when
-        var response = service.create(USER_ID, PROJECT_CODE, new BoardCreateRequest("Board API"));
+        var response = service.create(CREATOR_ID, PROJECT_CODE, USER_ID, new BoardCreateRequest("Board API"));
         // then
         assertThat(response.name()).isEqualTo("Board API");
         assertThat(response.sortOrder()).isEqualTo(1);
@@ -98,10 +99,10 @@ class BoardServiceImplTest {
         Project project = spy(Project.create(User.create("생성자", "creator@example.com", null), PROJECT_CODE, "프로젝트", null));
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         doReturn(PROJECT_ID).when(project).getId();
-        when(projectRepository.findByCodeForUpdate(PROJECT_CODE)).thenReturn(Optional.of(project));
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE)).thenReturn(Optional.of(project));
 
         // when / then
-        assertThatThrownBy(() -> service.create(USER_ID, PROJECT_CODE, new BoardCreateRequest("보드")))
+        assertThatThrownBy(() -> service.create(CREATOR_ID, PROJECT_CODE, USER_ID, new BoardCreateRequest("보드")))
                 .isInstanceOf(AccessDeniedException.class);
         verify(memberRepository).existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID);
         assertThat(project.getBoards()).isEmpty();
@@ -115,7 +116,7 @@ class BoardServiceImplTest {
         // given
         var request = new BoardCreateRequest(name);
         // when & then
-        assertThatThrownBy(() -> service.create(USER_ID, PROJECT_CODE, request))
+        assertThatThrownBy(() -> service.create(CREATOR_ID, PROJECT_CODE, USER_ID, request))
                 .isInstanceOf(BoardException.class);
         verifyNoInteractions(boardRepository, projectRepository, userRepository);
     }
@@ -126,7 +127,7 @@ class BoardServiceImplTest {
         BoardCreateRequest request = null;
 
         // when & then
-        assertThatThrownBy(() -> service.create(USER_ID, PROJECT_CODE, request))
+        assertThatThrownBy(() -> service.create(CREATOR_ID, PROJECT_CODE, USER_ID, request))
                 .isInstanceOfSatisfying(BoardException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_INVALID_NAME));
         verifyNoInteractions(userRepository, projectRepository, boardRepository);
@@ -138,7 +139,7 @@ class BoardServiceImplTest {
         var request = new BoardCreateRequest("보드");
 
         // when & then
-        assertThatThrownBy(() -> service.create(null, PROJECT_CODE, request))
+        assertThatThrownBy(() -> service.create(CREATOR_ID, PROJECT_CODE, null, request))
                 .isInstanceOfSatisfying(UserException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
         verifyNoInteractions(userRepository, projectRepository, boardRepository);
@@ -156,7 +157,7 @@ class BoardServiceImplTest {
         when(userRepository.existsById(USER_ID)).thenReturn(true);
 
         // when & then
-        assertThatThrownBy(() -> service.create(USER_ID, code, request))
+        assertThatThrownBy(() -> service.create(CREATOR_ID, code, USER_ID, request))
                 .isInstanceOfSatisfying(ProjectException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
         verify(userRepository).existsById(USER_ID);
@@ -168,7 +169,7 @@ class BoardServiceImplTest {
         // given
         var request = new BoardCreateRequest("보드");
         // when & then
-        assertThatThrownBy(() -> service.create(USER_ID, PROJECT_CODE, request))
+        assertThatThrownBy(() -> service.create(CREATOR_ID, PROJECT_CODE, USER_ID, request))
                 .isInstanceOf(UserException.class);
         verifyNoInteractions(boardRepository, projectRepository);
     }
@@ -178,7 +179,7 @@ class BoardServiceImplTest {
         // given
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         // when & then
-        assertThatThrownBy(() -> service.create(USER_ID, PROJECT_CODE, new BoardCreateRequest("보드")))
+        assertThatThrownBy(() -> service.create(CREATOR_ID, PROJECT_CODE, USER_ID, new BoardCreateRequest("보드")))
                 .isInstanceOf(ProjectException.class);
         verifyNoInteractions(boardRepository);
     }
@@ -193,20 +194,20 @@ class BoardServiceImplTest {
         Project project = spy(Project.create(User.create("생성자", "creator@example.com", null), PROJECT_CODE, "프로젝트", null));
         doReturn(PROJECT_ID).when(project).getId();
         when(userRepository.existsById(USER_ID)).thenReturn(true);
-        when(projectRepository.findByCode(PROJECT_CODE)).thenReturn(Optional.of(project));
+        when(projectRepository.findByCreator_IdAndCode(CREATOR_ID, PROJECT_CODE)).thenReturn(Optional.of(project));
 
         // when / then
-        assertThatThrownBy(() -> service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+        assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 0, 20))
                 .isInstanceOf(AccessDeniedException.class);
         verify(memberRepository).existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID);
-        verify(projectRepository, never()).findByCodeForUpdate(any());
+        verify(projectRepository, never()).findByCreatorIdAndCodeForUpdate(any(), any());
         verifyNoInteractions(boardRepository);
     }
 
     @Test
     void 목록_조회시_없는_사용자는_거절한다() {
         // given / when / then
-        assertThatThrownBy(() -> service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+        assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 0, 20))
                 .isInstanceOfSatisfying(UserException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
         verifyNoInteractions(projectRepository, memberRepository, boardRepository);
@@ -218,9 +219,21 @@ class BoardServiceImplTest {
         when(userRepository.existsById(USER_ID)).thenReturn(true);
 
         // when / then
-        assertThatThrownBy(() -> service.getAll(USER_ID, PROJECT_CODE, 0, 20))
+        assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 0, 20))
                 .isInstanceOfSatisfying(ProjectException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
         verifyNoInteractions(memberRepository, boardRepository);
+    }
+
+    @Test
+    void 생성자_ID가_없으면_프로젝트를_조회하지_않는다() {
+        // given
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        // when / then
+        assertThatThrownBy(() -> service.create(null, PROJECT_CODE, USER_ID, new BoardCreateRequest("보드")))
+                .isInstanceOf(ProjectException.class);
+        assertThatThrownBy(() -> service.getAll(null, PROJECT_CODE, USER_ID, 0, 20))
+                .isInstanceOf(ProjectException.class);
+        verifyNoInteractions(projectRepository, memberRepository, boardRepository);
     }
 }

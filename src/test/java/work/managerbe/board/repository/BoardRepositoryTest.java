@@ -62,7 +62,7 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when
-        var board = boardService.create(creator.getId(), project.code(), new BoardCreateRequest(BOARD_NAME));
+        var board = boardService.create(creator.getId(), project.code(), creator.getId(), new BoardCreateRequest(BOARD_NAME));
         entityManager.flush();
         entityManager.clear();
 
@@ -136,8 +136,8 @@ class BoardRepositoryTest {
         entityManager.persist(Member.create(user, project, "MEMBER"));
 
         // when
-        var first = boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("첫 보드"));
-        var second = boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("둘째 보드"));
+        var first = boardService.create(project.getCreator().getId(), project.getCode(), user.getId(), new BoardCreateRequest("첫 보드"));
+        var second = boardService.create(project.getCreator().getId(), project.getCode(), user.getId(), new BoardCreateRequest("둘째 보드"));
         entityManager.flush();
         entityManager.clear();
 
@@ -153,7 +153,7 @@ class BoardRepositoryTest {
         Project loaded = entityManager.find(Project.class, project.getId());
         assertThat(loaded.getBoards()).extracting(Board::getName).containsExactly("첫 보드", "둘째 보드");
         assertThat(loaded.getBoards()).extracting(Board::getSortOrder).containsExactly(0, 1);
-        var third = boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("셋째 보드"));
+        var third = boardService.create(project.getCreator().getId(), project.getCode(), user.getId(), new BoardCreateRequest("셋째 보드"));
         entityManager.flush();
         entityManager.clear();
         assertThat(third.sortOrder()).isEqualTo(2);
@@ -222,7 +222,7 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when / then
-        assertThatThrownBy(() -> boardService.create(user.getId(), target.getCode(), new BoardCreateRequest("보드")))
+        assertThatThrownBy(() -> boardService.create(target.getCreator().getId(), target.getCode(), user.getId(), new BoardCreateRequest("보드")))
                 .isInstanceOf(AccessDeniedException.class);
         assertThat(boardRepository.count()).isZero();
     }
@@ -244,7 +244,7 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when / then
-        assertThatThrownBy(() -> boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("보드")))
+        assertThatThrownBy(() -> boardService.create(project.getCreator().getId(), project.getCode(), user.getId(), new BoardCreateRequest("보드")))
                 .isInstanceOf(AccessDeniedException.class);
         assertThat(boardRepository.count()).isZero();
     }
@@ -257,7 +257,7 @@ class BoardRepositoryTest {
         // given
         User user = User.create("조회자", "board-list@example.com", null);
         Project project = Project.create(creator(), "LIST", "목록", null);
-        Project other = Project.create(creator(), "OTHER_LIST", "다른 프로젝트", null);
+        Project other = Project.create(creator(), "LIST", "다른 프로젝트", null);
         entityManager.persist(user);
         entityManager.persist(project);
         entityManager.persist(other);
@@ -270,9 +270,9 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when
-        var firstPage = boardService.getAll(user.getId(), project.getCode(), 0, 2);
-        var secondPage = boardService.getAll(user.getId(), project.getCode(), 1, 2);
-        var outsidePage = boardService.getAll(user.getId(), project.getCode(), 2, 2);
+        var firstPage = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 0, 2);
+        var secondPage = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 1, 2);
+        var outsidePage = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 2, 2);
 
         // then
         assertThat(firstPage.items()).extracting(BoardResponse::id)
@@ -304,7 +304,7 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when
-        var response = boardService.getAll(user.getId(), project.getCode(), 0, 20);
+        var response = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 0, 20);
 
         // then
         assertThat(response.items()).isEmpty();
@@ -325,7 +325,46 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when / then
-        assertThatThrownBy(() -> boardService.getAll(user.getId(), project.getCode(), 0, 20))
+        assertThatThrownBy(() -> boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 0, 20))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    /**
+     * 같은 코드의 두 프로젝트에 참여한 요청자도 생성자 조건으로 생성과 조회 대상을 구분한다.
+     */
+    @Test
+    void 동일_코드의_보드는_생성자별로_분리된다() {
+        // given
+        User requester = creator();
+        User firstCreator = creator();
+        User secondCreator = creator();
+        Project first = Project.create(firstCreator, "WORK", "첫 프로젝트", null);
+        Project second = Project.create(secondCreator, "WORK", "둘째 프로젝트", null);
+        entityManager.persist(first);
+        entityManager.persist(second);
+        entityManager.persist(Member.create(requester, first, "MEMBER"));
+        entityManager.persist(Member.create(requester, second, "MEMBER"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        var firstBoard = boardService.create(firstCreator.getId(), "WORK", requester.getId(), new BoardCreateRequest("첫 보드"));
+        var secondBoard = boardService.create(secondCreator.getId(), "WORK", requester.getId(), new BoardCreateRequest("둘째 보드"));
+        entityManager.flush();
+        entityManager.clear();
+        var firstList = boardService.getAll(firstCreator.getId(), "WORK", requester.getId(), 0, 20);
+        var secondList = boardService.getAll(secondCreator.getId(), "WORK", requester.getId(), 0, 20);
+
+        // then
+        assertThat(firstBoard.projectId()).isEqualTo(first.getId());
+        assertThat(secondBoard.projectId()).isEqualTo(second.getId());
+        assertThat(firstList.items()).extracting(BoardResponse::id).containsExactly(firstBoard.id());
+        assertThat(secondList.items()).extracting(BoardResponse::id).containsExactly(secondBoard.id());
+        assertThat(firstBoard.sortOrder()).isZero();
+        assertThat(secondBoard.sortOrder()).isZero();
+        assertThatThrownBy(() -> boardService.create(firstCreator.getId(), "WORK", secondCreator.getId(), new BoardCreateRequest("거절")))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> boardService.getAll(firstCreator.getId(), "WORK", secondCreator.getId(), 0, 20))
                 .isInstanceOf(AccessDeniedException.class);
     }
 

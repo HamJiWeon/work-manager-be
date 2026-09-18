@@ -68,7 +68,7 @@ class BoardConcurrencyTest {
             try {
                 // when
                 var first = executor.submit(() -> transaction.execute(status -> {
-                    var response = boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("첫 보드"));
+                    var response = boardService.create(project.getCreator().getId(), project.getCode(), user.getId(), new BoardCreateRequest("첫 보드"));
                     entityManager.flush();
                     firstCreated.countDown();
                     await(allowFirstCommit);
@@ -77,7 +77,7 @@ class BoardConcurrencyTest {
                 await(firstCreated);
                 var second = executor.submit(() -> transaction.execute(status -> {
                     secondStarted.countDown();
-                    return boardService.create(user.getId(), project.getCode(), new BoardCreateRequest("둘째 보드"));
+                    return boardService.create(project.getCreator().getId(), project.getCode(), user.getId(), new BoardCreateRequest("둘째 보드"));
                 }));
                 await(secondStarted);
 

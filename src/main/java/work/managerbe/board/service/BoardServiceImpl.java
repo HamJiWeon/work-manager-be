@@ -33,18 +33,19 @@ public class BoardServiceImpl implements BoardService {
     private final MemberRepository memberRepository;
 
     /**
-     * 이름과 사용자를 검증하고 코드로 조회한 프로젝트를 잠근 뒤 활성 멤버의 보드를 추가한다.
+     * 이름과 사용자를 검증하고 생성자와 코드로 조회한 프로젝트를 잠근 뒤 활성 멤버의 보드를 추가한다.
      */
     @Override
-    public BoardResponse create(UUID userId, String code, BoardCreateRequest request) {
+    public BoardResponse create(UUID creatorId, String code, UUID requesterId, BoardCreateRequest request) {
         requestValidate(request);
-        userValidate(userId);
+        userValidate(requesterId);
+        creatorValidate(creatorId);
         projectValidate(code);
 
-        Project project = projectRepository.findByCodeForUpdate(code)
+        Project project = projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, code)
                 .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
-        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(userId, project.getId())) {
+        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(requesterId, project.getId())) {
             throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 생성할 수 있습니다.");
         }
 
@@ -57,19 +58,29 @@ public class BoardServiceImpl implements BoardService {
      */
     @Override
     @Transactional(readOnly = true)
-    public BoardSliceResponse getAll(UUID userId, String code, int page, int size) {
-        userValidate(userId);
+    public BoardSliceResponse getAll(UUID creatorId, String code, UUID requesterId, int page, int size) {
+        userValidate(requesterId);
+        creatorValidate(creatorId);
         projectValidate(code);
 
-        Project project = projectRepository.findByCode(code)
+        Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
                 .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
-        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(userId, project.getId())) {
+        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(requesterId, project.getId())) {
             throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 조회할 수 있습니다.");
         }
 
         return BoardSliceResponse.from(boardRepository.findByProject_IdOrderBySortOrderAscIdAsc(
                 project.getId(), PageRequest.of(page, size)));
+    }
+
+    /**
+     * 생성자 조건이 누락된 프로젝트 조회를 거절한다.
+     */
+    private static void creatorValidate(UUID creatorId) {
+        if (creatorId == null) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND);
+        }
     }
 
     private static void projectValidate(String code) {
