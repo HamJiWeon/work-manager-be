@@ -1,6 +1,8 @@
 package work.managerbe.board.repository;
 
 import jakarta.persistence.EntityManager;
+import java.time.temporal.ChronoUnit;
+import static org.assertj.core.api.Assertions.within;
 import work.managerbe.member.domain.Member;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -371,6 +373,7 @@ class BoardRepositoryTest {
 
     /**
      * 앞뒤 이동과 부분 수정을 실제 DB에 반영하고 응답 및 재조회 순서가 일치하는지 검증한다.
+     * 생성 시각은 DB 저장값을 기준으로 비교하며 수정 시각은 TIMESTAMP(6)의 정밀도를 허용한다.
      */
     @Test
     void 보드_수정은_이름과_연속된_순서를_저장한다() {
@@ -383,7 +386,8 @@ class BoardRepositoryTest {
         Board second = boardRepository.save(project.addBoard("둘째 보드"));
         Board third = boardRepository.save(project.addBoard("셋째 보드"));
         entityManager.flush();
-        var createdAt = first.getCreatedAt();
+        entityManager.clear();
+        var createdAt = entityManager.find(Board.class, first.getId()).getCreatedAt();
         entityManager.clear();
 
         // when
@@ -399,7 +403,8 @@ class BoardRepositoryTest {
                 .containsExactly(second.getId(), third.getId(), first.getId());
         assertThat(entityManager.find(Project.class, project.getId()).getBoards()).extracting(Board::getSortOrder)
                 .containsExactly(0, 1, 2);
-        assertThat(entityManager.find(Board.class, first.getId()).getUpdatedAt()).isEqualTo(moved.updatedAt());
+        assertThat(entityManager.find(Board.class, first.getId()).getUpdatedAt())
+                .isCloseTo(moved.updatedAt(), within(1, ChronoUnit.MICROS));
 
         // when
         var returned = boardService.update(owner.getId(), "EDIT", owner.getId(), first.getId(), new BoardUpdateRequest(null, 0));
@@ -411,7 +416,8 @@ class BoardRepositoryTest {
         assertThat(returned.updatedAt()).isAfterOrEqualTo(moved.updatedAt());
         assertThat(entityManager.find(Project.class, project.getId()).getBoards()).extracting(Board::getId)
                 .containsExactly(first.getId(), second.getId(), third.getId());
-        assertThat(entityManager.find(Board.class, first.getId()).getUpdatedAt()).isEqualTo(returned.updatedAt());
+        assertThat(entityManager.find(Board.class, first.getId()).getUpdatedAt())
+                .isCloseTo(returned.updatedAt(), within(1, ChronoUnit.MICROS));
         var renamed = boardService.update(owner.getId(), "EDIT", owner.getId(), second.getId(), new BoardUpdateRequest("이름만", null));
         entityManager.clear();
         assertThat(renamed.sortOrder()).isEqualTo(1);
