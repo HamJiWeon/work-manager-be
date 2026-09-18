@@ -163,8 +163,28 @@ class BoardControllerTest {
         verify(service).getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 2, 5);
     }
 
+    /**
+     * 최대 조회 크기는 허용하고 서비스에 그대로 전달한다.
+     */
+    @Test
+    void 최대_크기_100개_요청은_허용한다() throws Exception {
+        // given
+        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 100))
+                .thenReturn(new BoardSliceResponse(List.of(), 0, 100, false));
+
+        // when / then
+        mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE)
+                        .param("size", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(100));
+        verify(service).getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 100);
+    }
+
+    /**
+     * 상한 초과를 포함한 잘못된 페이지 입력은 서비스 호출 전에 거절한다.
+     */
     @ParameterizedTest
-    @CsvSource({"-1,20", "0,0", "0,-1", "abc,20", "0,abc"})
+    @CsvSource({"-1,20", "0,0", "0,-1", "abc,20", "0,abc", "0,101", "0,2147483647"})
     void 잘못된_목록_페이지는_400을_반환한다(String page, String size) throws Exception {
         // given / when / then
         mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE)

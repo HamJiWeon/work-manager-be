@@ -3,6 +3,7 @@ package work.managerbe.board.controller;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,8 @@ import work.managerbe.global.constant.ApiPaths;
 @RequiredArgsConstructor
 public class BoardController {
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final BoardService boardService;
 
     /**
@@ -34,14 +37,14 @@ public class BoardController {
     }
 
     /**
-     * 생성자와 코드, 인증된 요청자를 전달하고 페이지 번호와 크기를 검증한다.
+     * 생성자와 코드, 인증된 요청자를 전달하고 조회 크기를 1부터 100까지 제한한다.
      */
     @GetMapping
     public ResponseEntity<BoardSliceResponse> getAll(
             @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
             @AuthenticationPrincipal UUID requesterId,
             @RequestParam(name = "page", defaultValue = "0") @Min(0) int page,
-            @RequestParam(name = "size", defaultValue = "20") @Min(1) int size) {
+            @RequestParam(name = "size", defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size) {
         return ResponseEntity.ok(boardService.getAll(creatorId, code, requesterId, page, size));
     }
 }
