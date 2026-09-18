@@ -35,7 +35,7 @@ public class ProjectController {
     @GetMapping(PRJ_CODE)
     public ResponseEntity<ProjectResponse> get(
             @PathVariable("userId") UUID creatorId,
-            @PathVariable String code,
+            @PathVariable("code") String code,
             @AuthenticationPrincipal UUID userId) {
         return ResponseEntity.ok(projectService.get(creatorId, code, userId));
     }
