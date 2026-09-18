@@ -1,6 +1,8 @@
 package work.managerbe.project.service;
 
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.global.exception.project.ProjectErrorCode;
@@ -17,6 +19,7 @@ import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
 
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -37,47 +40,70 @@ public class ProjectServiceImpl implements ProjectService{
     @Override
     @Transactional
     public ProjectResponse create(UUID userId ,ProjectCreateRequest request) {
-        if(request.cardPrefix() == null || request.name() == null || request.cardPrefix().isBlank() || request.name().isBlank()) {
-            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
-        }
-        if(request.cardPrefix().contains("_")) {
-            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_PREFIX);
+        projectCodeValidation(request);
+        projectNameValidation(request);
+        userIdValidation(userId);
+        if(request.code().contains("_")) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_FORMAT);
         }
 
-        if (userId == null) {
-            throw UserException.of(UserErrorCode.USER_NOT_FOUND);
-        }
+
         User creator = userRepository.findById(userId)
                 .orElseThrow(() -> UserException.of(UserErrorCode.USER_NOT_FOUND));
 
-        projectRepository.findByUser_Id(userId).stream()
-                .filter(a -> a.cardPrefix(a.getCode()).equalsIgnoreCase(request.cardPrefix()))
-                .findFirst()
-                .ifPresent(project -> {
-                    throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_PREFIX);
-                });
+        String code = request.code().toUpperCase(Locale.ROOT);
+        if (projectRepository.existsByCreator_IdAndCode(userId, code)) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_CODE);
+        }
 
-        String code = request.cardPrefix().toUpperCase() + "_" + UUID.randomUUID();
-        Project project = Project.create(code, request.name(), request.description());
-        Project savedProject = projectRepository.save(project);
+        Project project = Project.create(creator, code, request.name(), request.description());
+        Project savedProject;
+        try {
+            savedProject = projectRepository.saveAndFlush(project);
+        } catch (DataIntegrityViolationException e) {
+            if (e.getCause() instanceof ConstraintViolationException violation
+                    && "uk_projects_user_code".equalsIgnoreCase(
+                    violation.getConstraintName())) {
+                throw ProjectException.of(ProjectErrorCode.PROJECT_DUPLICATE_CODE);
+            }
+            throw e;
+        }
         memberRepository.save(Member.create(creator, savedProject, CREATOR_ROLE));
         return mapper.toResponse(savedProject);
     }
 
     @Override
-    public ProjectResponse get(UUID userId, String code) {
+    public ProjectResponse get(UUID creatorId, String code, UUID requesterId) {
+        userIdValidation(creatorId);
+        userIdValidation(requesterId);
         if(code == null || code.isBlank()) {
-            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_NAME);
-        }
-        if(userId == null) {
-            throw UserException.of(UserErrorCode.USER_NOT_FOUND);
+            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE);
         }
 
-        Project project = projectRepository.findByUser_Id(userId).stream()
-                .filter(a -> a.cardPrefix(a.getCode()).equals(code))
-                .findFirst()
-                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        Project project = projectRepository
+                .findAccessibleProject(creatorId, code, requesterId)
+                .orElseThrow(() ->
+                        ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+
 
         return mapper.toResponse(project);
+    }
+
+    private static void userIdValidation(UUID userId) {
+        if (userId == null) {
+            throw UserException.of(UserErrorCode.USER_NOT_FOUND);
+        }
+    }
+
+    private static void projectNameValidation(ProjectCreateRequest request) {
+        if(request.name() == null || request.name().isBlank()) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_NAME);
+        }
+    }
+
+    private static void projectCodeValidation(ProjectCreateRequest request) {
+        if(request.code() == null || request.code().isBlank()) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE);
+        }
     }
 }

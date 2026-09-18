@@ -1,5 +1,6 @@
 package work.managerbe.workspace.domain;
 
+import work.managerbe.user.domain.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import work.managerbe.project.domain.Project;
@@ -12,7 +13,7 @@ class WorkspaceTest {
     @DisplayName("워크스페이스를 생성하면 프로젝트와 입력 내용이 저장된다.")
     void 워크스페이스_생성() {
         // given
-        Project project = Project.create("WORK_test", "업무 관리", "프로젝트 설명");
+        Project project = Project.create(User.create("생성자", "creator@example.com", null), "WORK_test", "업무 관리", "프로젝트 설명");
 
         // when
         Workspace workspace = Workspace.create(project, "회의록", "회의 내용");
