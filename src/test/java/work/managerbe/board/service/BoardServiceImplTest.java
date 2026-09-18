@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.BoardCreateRequest;
+import work.managerbe.board.dto.BoardUpdateRequest;
 import work.managerbe.board.repository.BoardRepository;
 import work.managerbe.global.exception.board.BoardException;
 import work.managerbe.global.exception.board.BoardErrorCode;
@@ -235,5 +236,24 @@ class BoardServiceImplTest {
         assertThatThrownBy(() -> service.getAll(null, PROJECT_CODE, USER_ID, 0, 20))
                 .isInstanceOf(ProjectException.class);
         verifyNoInteractions(projectRepository, memberRepository, boardRepository);
+    }
+
+    @Test
+    void 빈_수정_요청은_조회_없이_거절한다() {
+        // given / when / then
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, 1L, null))
+                .isInstanceOfSatisfying(BoardException.class, e -> assertThat(e.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_INVALID_UPDATE));
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, 1L, new BoardUpdateRequest(null, null)))
+                .isInstanceOfSatisfying(BoardException.class, e -> assertThat(e.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_INVALID_UPDATE));
+        verifyNoInteractions(projectRepository, userRepository, memberRepository, boardRepository);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "\t"})
+    void 공백_이름_수정은_조회_없이_거절한다(String name) {
+        // given / when / then
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, 1L, new BoardUpdateRequest(name, null)))
+                .isInstanceOfSatisfying(BoardException.class, e -> assertThat(e.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_INVALID_NAME));
+        verifyNoInteractions(projectRepository, userRepository, memberRepository, boardRepository);
     }
 }

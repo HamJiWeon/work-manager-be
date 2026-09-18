@@ -1,6 +1,8 @@
 package work.managerbe.board.controller;
 
 import java.time.LocalDateTime;
+import work.managerbe.board.dto.BoardUpdateRequest;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import java.util.List;
 import work.managerbe.board.dto.BoardSliceResponse;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -213,6 +215,37 @@ class BoardControllerTest {
         // when / then
         mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE))
                 .andExpect(status().isNotFound());
+    }
+
+    /**
+     * 명세의 PATCH 경로에서 생성자와 요청자를 분리해 수정 결과를 반환한다.
+     */
+    @Test
+    void 보드_수정은_200과_변경_결과를_반환한다() throws Exception {
+        // given
+        var now = LocalDateTime.of(2026, 9, 14, 14, 0);
+        var request = new BoardUpdateRequest("Card API", 2);
+        when(service.update(USER_ID, PROJECT_CODE, REQUESTER_ID, 1L, request))
+                .thenReturn(new BoardResponse(1L, 1L, "Card API", 2, now, now));
+        // when / then
+        mvc.perform(patch("/{userId}/{code}/{boardId}", USER_ID, PROJECT_CODE, 1L)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Card API\",\"sortOrder\":2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Card API"))
+                .andExpect(jsonPath("$.sortOrder").value(2))
+                .andExpect(jsonPath("$.updatedAt").value("2026-09-14T14:00:00"));
+        verify(service).update(USER_ID, PROJECT_CODE, REQUESTER_ID, 1L, request);
+    }
+
+    @Test
+    void 잘못된_수정_순서는_400으로_반환한다() throws Exception {
+        // given
+        when(service.update(eq(USER_ID), eq(PROJECT_CODE), eq(REQUESTER_ID), eq(1L), any()))
+                .thenThrow(BoardException.of(BoardErrorCode.BOARD_INVALID_SORT_ORDER));
+        // when / then
+        mvc.perform(patch("/{userId}/{code}/{boardId}", USER_ID, PROJECT_CODE, 1L)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"sortOrder\":-1}"))
+                .andExpect(status().isBadRequest());
     }
 
     /**

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardResponse;
+import work.managerbe.board.dto.BoardUpdateRequest;
 import work.managerbe.board.service.BoardService;
 import work.managerbe.user.domain.User;
 import work.managerbe.project.domain.Project;
@@ -366,6 +367,94 @@ class BoardRepositoryTest {
                 .isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> boardService.getAll(firstCreator.getId(), "WORK", secondCreator.getId(), 0, 20))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    /**
+     * 앞뒤 이동과 부분 수정을 실제 DB에 반영하고 응답 및 재조회 순서가 일치하는지 검증한다.
+     */
+    @Test
+    void 보드_수정은_이름과_연속된_순서를_저장한다() {
+        // given
+        User owner = creator();
+        Project project = Project.create(owner, "EDIT", "수정", null);
+        entityManager.persist(project);
+        entityManager.persist(Member.create(owner, project, "OWNER"));
+        Board first = boardRepository.save(project.addBoard("첫 보드"));
+        Board second = boardRepository.save(project.addBoard("둘째 보드"));
+        Board third = boardRepository.save(project.addBoard("셋째 보드"));
+        entityManager.flush();
+        var createdAt = first.getCreatedAt();
+        entityManager.clear();
+
+        // when
+        var moved = boardService.update(owner.getId(), "EDIT", owner.getId(), first.getId(), new BoardUpdateRequest("변경", 2));
+        entityManager.clear();
+
+        // then
+        assertThat(moved.name()).isEqualTo("변경");
+        assertThat(moved.sortOrder()).isEqualTo(2);
+        assertThat(moved.createdAt()).isEqualTo(createdAt);
+        assertThat(moved.updatedAt()).isAfterOrEqualTo(createdAt);
+        assertThat(entityManager.find(Project.class, project.getId()).getBoards()).extracting(Board::getId)
+                .containsExactly(second.getId(), third.getId(), first.getId());
+        assertThat(entityManager.find(Project.class, project.getId()).getBoards()).extracting(Board::getSortOrder)
+                .containsExactly(0, 1, 2);
+        assertThat(entityManager.find(Board.class, first.getId()).getUpdatedAt()).isEqualTo(moved.updatedAt());
+
+        // when
+        var returned = boardService.update(owner.getId(), "EDIT", owner.getId(), first.getId(), new BoardUpdateRequest(null, 0));
+        entityManager.clear();
+
+        // then
+        assertThat(returned.name()).isEqualTo("변경");
+        assertThat(returned.sortOrder()).isZero();
+        assertThat(returned.updatedAt()).isAfterOrEqualTo(moved.updatedAt());
+        assertThat(entityManager.find(Project.class, project.getId()).getBoards()).extracting(Board::getId)
+                .containsExactly(first.getId(), second.getId(), third.getId());
+        assertThat(entityManager.find(Board.class, first.getId()).getUpdatedAt()).isEqualTo(returned.updatedAt());
+        var renamed = boardService.update(owner.getId(), "EDIT", owner.getId(), second.getId(), new BoardUpdateRequest("이름만", null));
+        entityManager.clear();
+        assertThat(renamed.sortOrder()).isEqualTo(1);
+        assertThat(entityManager.find(Board.class, second.getId()).getName()).isEqualTo("이름만");
+    }
+
+    @Test
+    void 다른_프로젝트의_보드는_수정하지_않는다() {
+        // given
+        User owner = creator();
+        Project target = Project.create(owner, "TARGET_EDIT", "대상", null);
+        Project other = Project.create(creator(), "TARGET_EDIT", "다른 프로젝트", null);
+        entityManager.persist(target);
+        entityManager.persist(other);
+        entityManager.persist(Member.create(owner, target, "OWNER"));
+        Board board = boardRepository.save(other.addBoard("유지"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when / then
+        assertThatThrownBy(() -> boardService.update(owner.getId(), "TARGET_EDIT", owner.getId(), board.getId(), new BoardUpdateRequest("변경", null)))
+                .isInstanceOfSatisfying(work.managerbe.global.exception.board.BoardException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(work.managerbe.global.exception.board.BoardErrorCode.BOARD_NOT_FOUND));
+        assertThat(entityManager.find(Board.class, board.getId()).getName()).isEqualTo("유지");
+    }
+
+    @Test
+    void 탈퇴한_멤버는_보드를_수정할_수_없다() {
+        // given
+        User owner = creator();
+        Project project = Project.create(owner, "LEFT_EDIT", "대상", null);
+        entityManager.persist(project);
+        Member member = Member.create(owner, project, "OWNER");
+        entityManager.persist(member);
+        member.leave(member.getJoinedAt());
+        Board board = boardRepository.save(project.addBoard("유지"));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when / then
+        assertThatThrownBy(() -> boardService.update(owner.getId(), "LEFT_EDIT", owner.getId(), board.getId(), new BoardUpdateRequest("변경", null)))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThat(entityManager.find(Board.class, board.getId()).getName()).isEqualTo("유지");
     }
 
     /**

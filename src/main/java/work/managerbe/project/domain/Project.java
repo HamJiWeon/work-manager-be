@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import work.managerbe.board.domain.Board;
+import work.managerbe.global.exception.board.BoardErrorCode;
+import work.managerbe.global.exception.board.BoardException;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -67,6 +69,28 @@ public class Project extends BaseEntity {
      */
     public List<Board> getBoards() {
         return Collections.unmodifiableList(boards);
+    }
+
+    /**
+     * 보드를 지정한 위치로 이동하고 영향받은 보드의 순서와 감사 시각을 동기화한다.
+     */
+    public void moveBoard(Board board, int position) {
+        if (position < 0 || position >= boards.size()) {
+            throw BoardException.of(
+                    BoardErrorCode.BOARD_INVALID_SORT_ORDER);
+        }
+        int current = boards.indexOf(board);
+        if (current < 0) {
+            throw BoardException.of(
+                    BoardErrorCode.BOARD_NOT_FOUND);
+        }
+        if (current != position) {
+            boards.remove(current);
+            boards.add(position, board);
+            for (int index = Math.min(current, position); index <= Math.max(current, position); index++) {
+                boards.get(index).synchronizeSortOrder(index);
+            }
+        }
     }
 
     @Builder
