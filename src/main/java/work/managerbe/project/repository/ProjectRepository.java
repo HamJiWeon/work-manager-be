@@ -15,6 +15,18 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     boolean existsByCreator_IdAndCode(UUID creatorId, String code);
 
     /**
+     * 목록 조회에 사용할 프로젝트를 생성자와 코드로 조회한다.
+     */
+    Optional<Project> findByCreator_IdAndCode(UUID creatorId, String code);
+
+    /**
+     * 생성자와 코드로 프로젝트를 조회하고 행을 잠가 같은 프로젝트의 보드 생성 순서 계산을 직렬화한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Project p where p.creator.id = :creatorId and p.code = :code")
+    Optional<Project> findByCreatorIdAndCodeForUpdate(@Param("creatorId") UUID creatorId, @Param("code") String code);
+
+    /**
      * 프로젝트 행을 잠가 같은 프로젝트의 보드 생성 순서 계산을 직렬화한다.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

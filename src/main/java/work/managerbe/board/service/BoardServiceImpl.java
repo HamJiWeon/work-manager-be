@@ -1,6 +1,7 @@
 package work.managerbe.board.service;
 
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -8,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardResponse;
+import work.managerbe.board.dto.BoardSliceResponse;
 import work.managerbe.board.repository.BoardRepository;
 import work.managerbe.global.exception.board.BoardErrorCode;
 import work.managerbe.global.exception.board.BoardException;
@@ -31,18 +33,19 @@ public class BoardServiceImpl implements BoardService {
     private final MemberRepository memberRepository;
 
     /**
-     * 이름과 사용자 존재, 활성 멤버 여부를 검증하고 프로젝트 잠금 안에서 보드를 추가한다.
+     * 이름과 사용자를 검증하고 생성자와 코드로 조회한 프로젝트를 잠근 뒤 활성 멤버의 보드를 추가한다.
      */
     @Override
-    public BoardResponse create(UUID userId, Long projectId, BoardCreateRequest request) {
+    public BoardResponse create(UUID creatorId, String code, UUID requesterId, BoardCreateRequest request) {
         requestValidate(request);
-        userValidate(userId);
-        projectValidate(projectId);
+        userValidate(requesterId);
+        creatorValidate(creatorId);
+        projectValidate(code);
 
-        Project project = projectRepository.findByIdForUpdate(projectId)
+        Project project = projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, code)
                 .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
-        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(userId, projectId)) {
+        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(requesterId, project.getId())) {
             throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 생성할 수 있습니다.");
         }
 
@@ -50,8 +53,38 @@ public class BoardServiceImpl implements BoardService {
         return BoardResponse.from(boardRepository.save(board));
     }
 
-    private static void projectValidate(Long projectId) {
-        if (projectId == null) {
+    /**
+     * 사용자와 프로젝트의 활성 멤버 여부를 확인한 뒤 잠금 없이 보드 페이지를 조회한다.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public BoardSliceResponse getAll(UUID creatorId, String code, UUID requesterId, int page, int size) {
+        userValidate(requesterId);
+        creatorValidate(creatorId);
+        projectValidate(code);
+
+        Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+
+        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(requesterId, project.getId())) {
+            throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 조회할 수 있습니다.");
+        }
+
+        return BoardSliceResponse.from(boardRepository.findByProject_IdOrderBySortOrderAscIdAsc(
+                project.getId(), PageRequest.of(page, size)));
+    }
+
+    /**
+     * 생성자 조건이 누락된 프로젝트 조회를 거절한다.
+     */
+    private static void creatorValidate(UUID creatorId) {
+        if (creatorId == null) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND);
+        }
+    }
+
+    private static void projectValidate(String code) {
+        if (code == null || code.isBlank()) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND);
         }
     }
