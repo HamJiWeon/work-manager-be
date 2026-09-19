@@ -43,10 +43,11 @@ public class ProjectController {
 
     @GetMapping("/projects")
     public ResponseEntity<ProjectPageResponse> getAll(
-            @PathVariable("userId") UUID userId,
-            @RequestParam(defaultValue = "0") int page
+            @PathVariable("userId") UUID pathUserId,
+            @AuthenticationPrincipal UUID requesterId,
+            @RequestParam(name = "page", defaultValue = "0") int page
     ) {
-        return ResponseEntity.ok(projectService.getAll(userId, page));
+        return ResponseEntity.ok(projectService.getAll(pathUserId, requesterId, page));
     }
 
 }

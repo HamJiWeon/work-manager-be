@@ -530,7 +530,7 @@ class ProjectServiceImplTest {
             when(mapper.toPageResponse(any())).thenReturn(expectedResponse);
 
             // when
-            ProjectPageResponse response = projectService.getAll(userId, 1);
+            ProjectPageResponse response = projectService.getAll(userId, userId, 1);
 
             // then
             assertThat(response).isSameAs(expectedResponse);
@@ -558,7 +558,7 @@ class ProjectServiceImplTest {
             // when
             CommonException exception = assertThrows(
                     CommonException.class,
-                    () -> projectService.getAll(userId, -1)
+                    () -> projectService.getAll(userId, userId, -1)
             );
 
             // then
@@ -569,14 +569,35 @@ class ProjectServiceImplTest {
         @Test
         @DisplayName("사용자 ID가 없으면 조회하지 않는다.")
         void 사용자_ID가_없으면_조회_거절() {
+            // given
+            UUID requesterId = UUID.randomUUID();
+
             // when
             UserException exception = assertThrows(
                     UserException.class,
-                    () -> projectService.getAll(null, 0)
+                    () -> projectService.getAll(null, requesterId, 0)
             );
 
             // then
             assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
+            verifyNoInteractions(projectRepository, mapper);
+        }
+
+        @Test
+        @DisplayName("경로 사용자와 인증 사용자가 다르면 조회하지 않는다.")
+        void 다른_사용자의_프로젝트_목록_조회_거절() {
+            // given
+            UUID pathUserId = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+
+            // when
+            CommonException exception = assertThrows(
+                    CommonException.class,
+                    () -> projectService.getAll(pathUserId, requesterId, 0)
+            );
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
             verifyNoInteractions(projectRepository, mapper);
         }
     }

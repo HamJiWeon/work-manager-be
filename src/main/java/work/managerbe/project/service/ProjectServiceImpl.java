@@ -99,18 +99,21 @@ public class ProjectServiceImpl implements ProjectService{
     }
 
     @Override
-    public ProjectPageResponse getAll(UUID userId, int page) {
-        userIdValidation(userId);
+    public ProjectPageResponse getAll(UUID pathUserId, UUID requesterId, int page) {
+        userIdValidation(pathUserId);
+        if (!pathUserId.equals(requesterId)) {
+            throw CommonException.of(ErrorCode.FORBIDDEN);
+        }
         if (page < 0) {
             throw CommonException.of(ErrorCode.INVALID_REQUEST);
         }
 
         Pageable pageable = PageRequest.of(page, PROJECT_PAGE_SIZE);
 
-        List<ProjectResponse> content = projectRepository.findActiveProjects(userId, pageable).stream()
+        List<ProjectResponse> content = projectRepository.findActiveProjects(requesterId, pageable).stream()
                 .map(mapper::toResponse)
                 .toList();
-        long totalElements = projectRepository.countActiveProjects(userId);
+        long totalElements = projectRepository.countActiveProjects(requesterId);
 
         Page<ProjectResponse> result = new PageImpl<>(content, pageable, totalElements);
         return mapper.toPageResponse(result);

@@ -12,5 +12,5 @@ public interface ProjectService {
 
     ProjectResponse get(UUID creatorId, String code, UUID requesterId);
 
-    ProjectPageResponse getAll(UUID userId, int page);
+    ProjectPageResponse getAll(UUID pathUserId, UUID requesterId, int page);
 }

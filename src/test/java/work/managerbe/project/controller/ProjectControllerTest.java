@@ -232,6 +232,7 @@ class ProjectControllerTest {
         void 프로젝트_전체_조회() throws Exception {
             // given
             UUID userId = UUID.randomUUID();
+            authenticate(userId);
             ProjectResponse project = new ProjectResponse(
                     1L,
                     "WORK",
@@ -248,7 +249,7 @@ class ProjectControllerTest {
                     11L,
                     2
             );
-            when(projectService.getAll(userId, 1)).thenReturn(response);
+            when(projectService.getAll(userId, userId, 1)).thenReturn(response);
 
             // when / then
             mockMvc.perform(get("/{userId}/projects", userId)
@@ -262,7 +263,7 @@ class ProjectControllerTest {
                     .andExpect(jsonPath("$.totalElements").value(11))
                     .andExpect(jsonPath("$.totalPages").value(2));
 
-            verify(projectService).getAll(userId, 1);
+            verify(projectService).getAll(userId, userId, 1);
         }
 
         @Test
@@ -270,7 +271,8 @@ class ProjectControllerTest {
         void 음수_페이지_요청시_400_반환() throws Exception {
             // given
             UUID userId = UUID.randomUUID();
-            when(projectService.getAll(userId, -1))
+            authenticate(userId);
+            when(projectService.getAll(userId, userId, -1))
                     .thenThrow(CommonException.of(ErrorCode.INVALID_REQUEST));
 
             // when / then
@@ -279,7 +281,26 @@ class ProjectControllerTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
-            verify(projectService).getAll(userId, -1);
+            verify(projectService).getAll(userId, userId, -1);
+        }
+
+        @Test
+        @DisplayName("경로 사용자와 인증 사용자가 다르면 403을 반환한다.")
+        void 다른_사용자의_프로젝트_목록_조회시_403_반환() throws Exception {
+            // given
+            UUID pathUserId = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+            authenticate(requesterId);
+            when(projectService.getAll(pathUserId, requesterId, 0))
+                    .thenThrow(CommonException.of(ErrorCode.FORBIDDEN));
+
+            // when / then
+            mockMvc.perform(get("/{userId}/projects", pathUserId)
+                            .param("page", "0"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+            verify(projectService).getAll(pathUserId, requesterId, 0);
         }
 
         @Test
