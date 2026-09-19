@@ -3,14 +3,21 @@ package work.managerbe.project.service;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import work.managerbe.global.exception.CommonException;
+import work.managerbe.global.exception.ErrorCode;
 import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
+import work.managerbe.project.dto.response.ProjectPageResponse;
 import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.mapper.ProjectMapper;
 import work.managerbe.project.repository.ProjectRepository;
@@ -19,6 +26,7 @@ import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -28,6 +36,7 @@ import java.util.UUID;
 public class ProjectServiceImpl implements ProjectService{
 
     private static final String CREATOR_ROLE = "OWNER";
+    private static final int PROJECT_PAGE_SIZE = 10;
 
     private final ProjectRepository projectRepository;
     private final ProjectMapper mapper;
@@ -87,6 +96,24 @@ public class ProjectServiceImpl implements ProjectService{
 
 
         return mapper.toResponse(project);
+    }
+
+    @Override
+    public ProjectPageResponse getAll(UUID userId, int page) {
+        userIdValidation(userId);
+        if (page < 0) {
+            throw CommonException.of(ErrorCode.INVALID_REQUEST);
+        }
+
+        Pageable pageable = PageRequest.of(page, PROJECT_PAGE_SIZE);
+
+        List<ProjectResponse> content = projectRepository.findActiveProjects(userId, pageable).stream()
+                .map(mapper::toResponse)
+                .toList();
+        long totalElements = projectRepository.countActiveProjects(userId);
+
+        Page<ProjectResponse> result = new PageImpl<>(content, pageable, totalElements);
+        return mapper.toPageResponse(result);
     }
 
     private static void userIdValidation(UUID userId) {
