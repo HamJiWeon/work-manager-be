@@ -101,6 +101,7 @@ public class ProjectServiceImpl implements ProjectService{
     @Override
     public ProjectPageResponse getAll(UUID pathUserId, UUID requesterId, int page) {
         userIdValidation(pathUserId);
+        userIdValidation(requesterId);
         if (!pathUserId.equals(requesterId)) {
             throw CommonException.of(ErrorCode.FORBIDDEN);
         }
