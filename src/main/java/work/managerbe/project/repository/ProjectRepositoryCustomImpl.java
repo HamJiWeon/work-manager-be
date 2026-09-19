@@ -3,6 +3,7 @@ package work.managerbe.project.repository;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -52,6 +53,6 @@ public class ProjectRepositoryCustomImpl implements ProjectRepositoryCustom {
                 )
                 .fetchOne();
 
-        return total == null ? 0L : total;
+        return Objects.requireNonNullElse(total, 0L);
     }
 }
