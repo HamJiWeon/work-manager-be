@@ -1,6 +1,7 @@
 package work.managerbe.board.service;
 
 import work.managerbe.user.domain.User;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
@@ -267,6 +268,30 @@ class BoardServiceImplTest {
         var request = new BoardUpdateRequest(List.of(
                 new BoardUpdateItem(1L, null),
                 new BoardUpdateItem(1L, "변경")));
+
+        // when / then
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, request))
+                .isInstanceOfSatisfying(BoardException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_INVALID_UPDATE));
+        verifyNoInteractions(projectRepository, userRepository, memberRepository, boardRepository);
+    }
+
+    @Test
+    void null인_보드_항목은_조회_없이_거절한다() {
+        // given
+        var request = new BoardUpdateRequest(Collections.singletonList(null));
+
+        // when / then
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, request))
+                .isInstanceOfSatisfying(BoardException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_INVALID_UPDATE));
+        verifyNoInteractions(projectRepository, userRepository, memberRepository, boardRepository);
+    }
+
+    @Test
+    void null인_보드_ID는_조회_없이_거절한다() {
+        // given
+        var request = new BoardUpdateRequest(List.of(new BoardUpdateItem(null, null)));
 
         // when / then
         assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, request))
