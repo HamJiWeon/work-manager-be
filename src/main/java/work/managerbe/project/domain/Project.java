@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import work.managerbe.board.domain.Board;
 import work.managerbe.global.exception.board.BoardErrorCode;
 import work.managerbe.global.exception.board.BoardException;
@@ -79,7 +80,23 @@ public class Project extends BaseEntity {
             throw BoardException.of(
                     BoardErrorCode.BOARD_INVALID_SORT_ORDER);
         }
-        int current = boards.indexOf(board);
+
+        int current = -1;
+
+        Long boardId = board != null ? board.getId() : null;
+
+        for (int index = 0; index < boards.size(); index++) {
+
+            Board candidate = boards.get(index);
+            if (candidate == board || boardId != null
+                    && Objects.equals(candidate.getId(), boardId)) {
+
+                current = index;
+                board = candidate;
+                break;
+            }
+        }
+
         if (current < 0) {
             throw BoardException.of(
                     BoardErrorCode.BOARD_NOT_FOUND);
