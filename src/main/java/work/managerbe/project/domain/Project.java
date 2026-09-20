@@ -4,8 +4,11 @@ import jakarta.persistence.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
+import java.util.Set;
 import work.managerbe.board.domain.Board;
 import work.managerbe.global.exception.board.BoardErrorCode;
 import work.managerbe.global.exception.board.BoardException;
@@ -73,40 +76,34 @@ public class Project extends BaseEntity {
     }
 
     /**
-     * 보드를 지정한 위치로 이동하고 영향받은 보드의 순서와 감사 시각을 동기화한다.
+     * 전달된 ID 배열을 최종 순서로 사용하며 현재 보드 전체와 정확히 일치할 때만 목록을 재배치한다.
      */
-    public void moveBoard(Board board, int position) {
-        if (position < 0 || position >= boards.size()) {
-            throw BoardException.of(
-                    BoardErrorCode.BOARD_INVALID_SORT_ORDER);
+    public void reorderBoards(List<Long> boardIds) {
+        if (boardIds == null || boardIds.size() != boards.size()) {
+            throw BoardException.of(BoardErrorCode.BOARD_UPDATE_CONFLICT);
         }
 
-        int current = -1;
+        Map<Long, Board> boardsById = new HashMap<>();
+        for (Board board : boards) {
+            Long boardId = board.getId();
+            if (boardId == null || boardsById.put(boardId, board) != null) {
+                throw BoardException.of(BoardErrorCode.BOARD_UPDATE_CONFLICT);
+            }
+        }
 
-        Long boardId = board != null ? board.getId() : null;
+        Set<Long> requestedIds = new HashSet<>(boardIds);
+        if (requestedIds.size() != boardIds.size() || !requestedIds.equals(boardsById.keySet())) {
+            throw BoardException.of(BoardErrorCode.BOARD_UPDATE_CONFLICT);
+        }
+
+        List<Board> reorderedBoards = boardIds.stream()
+                .map(boardsById::get)
+                .toList();
+        boards.clear();
+        boards.addAll(reorderedBoards);
 
         for (int index = 0; index < boards.size(); index++) {
-
-            Board candidate = boards.get(index);
-            if (candidate == board || boardId != null
-                    && Objects.equals(candidate.getId(), boardId)) {
-
-                current = index;
-                board = candidate;
-                break;
-            }
-        }
-
-        if (current < 0) {
-            throw BoardException.of(
-                    BoardErrorCode.BOARD_NOT_FOUND);
-        }
-        if (current != position) {
-            boards.remove(current);
-            boards.add(position, board);
-            for (int index = Math.min(current, position); index <= Math.max(current, position); index++) {
-                boards.get(index).synchronizeSortOrder(index);
-            }
+            boards.get(index).synchronizeSortOrder(index);
         }
     }
 

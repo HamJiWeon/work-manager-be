@@ -1,6 +1,9 @@
 package work.managerbe.board.service;
 
 import java.util.UUID;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import org.springframework.data.domain.PageRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -10,6 +13,7 @@ import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardResponse;
 import work.managerbe.board.dto.BoardUpdateRequest;
+import work.managerbe.board.dto.BoardUpdateItem;
 import work.managerbe.board.dto.BoardSliceResponse;
 import work.managerbe.board.repository.BoardRepository;
 import work.managerbe.global.exception.board.BoardErrorCode;
@@ -103,25 +107,22 @@ public class BoardServiceImpl implements BoardService {
     }
 
     /**
-     * 프로젝트 행을 잠그고 활성 멤버 여부와 보드 소속을 확인한 뒤 전달된 필드만 수정한다.
-     * 순서 변경은 프로젝트 목록의 이동으로 처리하고, 이름이나 순서가 null이면 해당 값을 유지한다.
-     * 응답을 만들기 전에 변경 내용을 flush하여 감사 시각을 반영한다.
+     * 프로젝트 행을 잠그고 요청 배열을 최종 순서로 적용하며 전달된 이름을 같은 트랜잭션에서 수정한다.
+     * 요청 ID 집합이 현재 프로젝트 보드 전체와 다르면 오래된 목록으로 판단해 충돌을 반환한다.
      *
      * @param creatorId 프로젝트 생성자 ID
      * @param code 생성자 범위에서 프로젝트를 식별하는 코드
      * @param requesterId 보드 수정을 요청한 사용자 ID
-     * @param boardId 수정할 보드 ID
-     * @param request 변경할 이름 또는 0부터 시작하는 목표 순서
-     * @return 수정된 보드 정보
-     * @throws BoardException 수정 항목이 없거나 이름 또는 순서가 유효하지 않거나 대상 보드가 없는 경우
+     * @param request 최종 순서의 전체 보드와 선택적인 새 이름
+     * @return 최종 순서로 정렬된 보드 정보
+     * @throws BoardException 요청 형식이나 이름이 유효하지 않거나 현재 보드 목록과 충돌하는 경우
      * @throws UserException 요청자 ID가 없거나 사용자가 존재하지 않는 경우
      * @throws ProjectException 생성자 ID나 코드가 없거나 프로젝트를 찾을 수 없는 경우
      * @throws AccessDeniedException 요청자가 프로젝트의 활성 멤버가 아닌 경우
      */
     @Override
-    public BoardResponse update(UUID creatorId, String code, UUID requesterId, Long boardId, BoardUpdateRequest request) {
+    public List<BoardResponse> update(UUID creatorId, String code, UUID requesterId, BoardUpdateRequest request) {
         validateUpdateRequest(request);
-        validateUpdateName(request);
         validateUserExists(requesterId);
         validateCreatorId(creatorId);
         validateProjectCode(code);
@@ -133,45 +134,46 @@ public class BoardServiceImpl implements BoardService {
             throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 수정할 수 있습니다.");
         }
 
-        Board board = project.getBoards().stream()
-                .filter(candidate -> candidate.getId().equals(boardId))
-                .findFirst().orElseThrow(() -> BoardException.of(BoardErrorCode.BOARD_NOT_FOUND));
+        List<Long> boardIds = request.boards().stream()
+                .map(BoardUpdateItem::boardId)
+                .toList();
 
-        if (request.sortOrder() != null) {
-            project.moveBoard(board, request.sortOrder());
-        }
+        project.reorderBoards(boardIds);
 
-        if (request.name() != null) {
-            board.rename(request.name());
+        for (int index = 0; index < request.boards().size(); index++) {
+            String name = request.boards().get(index).name();
+            if (name != null) {
+                project.getBoards().get(index).rename(name);
+            }
         }
 
         boardRepository.flush();
-        return BoardResponse.from(board);
+
+        return project.getBoards().stream()
+                .map(BoardResponse::from)
+                .toList();
     }
 
     /**
-     * 전달된 수정 이름이 빈 문자열이나 공백인지 확인하며, null이면 이름을 유지하도록 허용한다.
-     * {@link #validateUpdateRequest(BoardUpdateRequest)} 검증 후 호출한다.
-     *
-     * @param request null이 아닌 수정 요청
-     * @throws BoardException 이름이 빈 문자열이거나 공백인 경우
-     */
-    private static void validateUpdateName(BoardUpdateRequest request) {
-        if (request.name() != null && request.name().isBlank()) {
-            throw BoardException.of(BoardErrorCode.BOARD_INVALID_NAME);
-        }
-    }
-
-    /**
-     * 수정 요청이 존재하고 이름 또는 순서 중 하나 이상이 전달되었는지 확인한다.
+     * 수정 요청에 전체 보드 배열과 중복 없는 ID가 있고 전달된 이름이 공백이 아닌지 확인한다.
      * 개별 필드 값의 유효성은 후속 검증에서 확인한다.
      *
      * @param request 수정 요청
-     * @throws BoardException 요청이 null이거나 모든 수정 필드가 null인 경우
+     * @throws BoardException 요청 형식이나 이름이 유효하지 않은 경우
      */
     private static void validateUpdateRequest(BoardUpdateRequest request) {
-        if (request == null || (request.name() == null && request.sortOrder() == null)) {
+        if (request == null || request.boards() == null || request.boards().isEmpty()) {
             throw BoardException.of(BoardErrorCode.BOARD_INVALID_UPDATE);
+        }
+
+        Set<Long> boardIds = new HashSet<>();
+        for (BoardUpdateItem item : request.boards()) {
+            if (item == null || item.boardId() == null || !boardIds.add(item.boardId())) {
+                throw BoardException.of(BoardErrorCode.BOARD_INVALID_UPDATE);
+            }
+            if (item.name() != null && item.name().isBlank()) {
+                throw BoardException.of(BoardErrorCode.BOARD_INVALID_NAME);
+            }
         }
     }
 

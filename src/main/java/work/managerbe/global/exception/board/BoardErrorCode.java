@@ -15,8 +15,8 @@ public enum BoardErrorCode implements ApiErrorCode {
     BOARD_NOT_FOUND("BRD-001", HttpStatus.NOT_FOUND, "보드를 찾을 수 없습니다."),
     BOARD_INVALID_NAME("BRD-002", HttpStatus.BAD_REQUEST, "보드 이름은 필수입니다."),
     BOARD_SORT_ORDER_EXHAUSTED("BRD-003", HttpStatus.CONFLICT, "보드 정렬 순서의 최댓값에 도달했습니다."),
-    BOARD_INVALID_SORT_ORDER("BRD-004", HttpStatus.BAD_REQUEST, "보드 순서가 유효하지 않습니다."),
-    BOARD_INVALID_UPDATE("BRD-005", HttpStatus.BAD_REQUEST, "수정할 보드 정보가 필요합니다.");
+    BOARD_INVALID_UPDATE("BRD-005", HttpStatus.BAD_REQUEST, "수정할 보드 정보가 필요합니다."),
+    BOARD_UPDATE_CONFLICT("BRD-006", HttpStatus.CONFLICT, "최신 보드 목록을 다시 조회한 후 수정해 주세요.");
 
     private final String name;
     private final HttpStatus httpStatus;

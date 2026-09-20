@@ -1,7 +1,9 @@
 package work.managerbe.board.dto;
 
+import java.util.List;
+
 /**
- * null인 필드는 유지하고 전달된 이름과 0부터 시작하는 순서만 수정한다.
+ * 배열 순서를 최종 보드 순서로 사용하고 각 항목에 전달된 이름을 함께 수정한다.
  */
-public record BoardUpdateRequest(String name, Integer sortOrder) {
+public record BoardUpdateRequest(List<BoardUpdateItem> boards) {
 }

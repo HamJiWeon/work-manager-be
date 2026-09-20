@@ -1,5 +1,6 @@
 package work.managerbe.board.service;
 
+import java.util.List;
 import java.util.UUID;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardResponse;
@@ -18,7 +19,7 @@ public interface BoardService {
     BoardSliceResponse getAll(UUID creatorId, String code, UUID requesterId, int page, int size);
 
     /**
-     * 활성 멤버가 지정한 프로젝트 보드의 이름과 순서를 수정한다.
+     * 활성 멤버가 전달한 배열 순서대로 전체 보드를 재배치하고 이름을 함께 수정한다.
      */
-    BoardResponse update(UUID creatorId, String code, UUID requesterId, Long boardId, BoardUpdateRequest request);
+    List<BoardResponse> update(UUID creatorId, String code, UUID requesterId, BoardUpdateRequest request);
 }

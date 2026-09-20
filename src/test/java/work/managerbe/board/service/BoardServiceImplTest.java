@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.BoardCreateRequest;
+import work.managerbe.board.dto.BoardUpdateItem;
 import work.managerbe.board.dto.BoardUpdateRequest;
 import work.managerbe.board.repository.BoardRepository;
 import work.managerbe.global.exception.board.BoardException;
@@ -241,9 +242,11 @@ class BoardServiceImplTest {
     @Test
     void 빈_수정_요청은_조회_없이_거절한다() {
         // given / when / then
-        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, 1L, null))
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, null))
                 .isInstanceOfSatisfying(BoardException.class, e -> assertThat(e.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_INVALID_UPDATE));
-        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, 1L, new BoardUpdateRequest(null, null)))
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, new BoardUpdateRequest(null)))
+                .isInstanceOfSatisfying(BoardException.class, e -> assertThat(e.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_INVALID_UPDATE));
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, new BoardUpdateRequest(List.of())))
                 .isInstanceOfSatisfying(BoardException.class, e -> assertThat(e.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_INVALID_UPDATE));
         verifyNoInteractions(projectRepository, userRepository, memberRepository, boardRepository);
     }
@@ -252,8 +255,60 @@ class BoardServiceImplTest {
     @ValueSource(strings = {"", " ", "\t"})
     void 공백_이름_수정은_조회_없이_거절한다(String name) {
         // given / when / then
-        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, 1L, new BoardUpdateRequest(name, null)))
+        var request = new BoardUpdateRequest(List.of(new BoardUpdateItem(1L, name)));
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, request))
                 .isInstanceOfSatisfying(BoardException.class, e -> assertThat(e.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_INVALID_NAME));
         verifyNoInteractions(projectRepository, userRepository, memberRepository, boardRepository);
+    }
+
+    @Test
+    void 중복된_보드_ID는_조회_없이_거절한다() {
+        // given
+        var request = new BoardUpdateRequest(List.of(
+                new BoardUpdateItem(1L, null),
+                new BoardUpdateItem(1L, "변경")));
+
+        // when / then
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, USER_ID, request))
+                .isInstanceOfSatisfying(BoardException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_INVALID_UPDATE));
+        verifyNoInteractions(projectRepository, userRepository, memberRepository, boardRepository);
+    }
+
+    @Test
+    void 전체_보드의_순서와_이름을_한번에_수정한다() {
+        // given
+        Project project = spy(Project.create(
+                User.create("생성자", "update@example.com", null), PROJECT_CODE, "프로젝트", null));
+        Board first = mock(Board.class);
+        Board second = mock(Board.class);
+        when(first.getProject()).thenReturn(project);
+        when(first.getId()).thenReturn(1L);
+        when(first.getName()).thenReturn("첫 보드");
+        when(second.getProject()).thenReturn(project);
+        when(second.getId()).thenReturn(2L);
+        when(second.getName()).thenReturn("둘째 보드");
+        project.registerBoard(first);
+        project.registerBoard(second);
+        doReturn(PROJECT_ID).when(project).getId();
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(project));
+        when(memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID)).thenReturn(true);
+        var request = new BoardUpdateRequest(List.of(
+                new BoardUpdateItem(2L, "변경"),
+                new BoardUpdateItem(1L, null)));
+
+        // when
+        var responses = service.update(CREATOR_ID, PROJECT_CODE, USER_ID, request);
+
+        // then
+        assertThat(project.getBoards()).containsExactly(second, first);
+        assertThat(responses).extracting(response -> response.id()).containsExactly(2L, 1L);
+        verify(second).rename("변경");
+        verify(first, never()).rename(anyString());
+        verify(second).synchronizeSortOrder(0);
+        verify(first).synchronizeSortOrder(1);
+        verify(boardRepository).flush();
     }
 }

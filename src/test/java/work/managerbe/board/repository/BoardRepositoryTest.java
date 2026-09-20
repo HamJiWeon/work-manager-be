@@ -2,6 +2,7 @@ package work.managerbe.board.repository;
 
 import jakarta.persistence.EntityManager;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import static org.assertj.core.api.Assertions.within;
 import work.managerbe.member.domain.Member;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardResponse;
+import work.managerbe.board.dto.BoardUpdateItem;
 import work.managerbe.board.dto.BoardUpdateRequest;
 import work.managerbe.board.service.BoardService;
 import work.managerbe.user.domain.User;
@@ -391,7 +393,11 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when
-        var moved = boardService.update(owner.getId(), "EDIT", owner.getId(), first.getId(), new BoardUpdateRequest("변경", 2));
+        var updated = boardService.update(owner.getId(), "EDIT", owner.getId(), new BoardUpdateRequest(List.of(
+                new BoardUpdateItem(second.getId(), null),
+                new BoardUpdateItem(third.getId(), null),
+                new BoardUpdateItem(first.getId(), "변경"))));
+        var moved = updated.getLast();
         entityManager.clear();
 
         // then
@@ -407,7 +413,11 @@ class BoardRepositoryTest {
                 .isCloseTo(moved.updatedAt(), within(1, ChronoUnit.MICROS));
 
         // when
-        var returned = boardService.update(owner.getId(), "EDIT", owner.getId(), first.getId(), new BoardUpdateRequest(null, 0));
+        var returnedBoards = boardService.update(owner.getId(), "EDIT", owner.getId(), new BoardUpdateRequest(List.of(
+                new BoardUpdateItem(first.getId(), null),
+                new BoardUpdateItem(second.getId(), null),
+                new BoardUpdateItem(third.getId(), null))));
+        var returned = returnedBoards.getFirst();
         entityManager.clear();
 
         // then
@@ -418,7 +428,11 @@ class BoardRepositoryTest {
                 .containsExactly(first.getId(), second.getId(), third.getId());
         assertThat(entityManager.find(Board.class, first.getId()).getUpdatedAt())
                 .isCloseTo(returned.updatedAt(), within(1, ChronoUnit.MICROS));
-        var renamed = boardService.update(owner.getId(), "EDIT", owner.getId(), second.getId(), new BoardUpdateRequest("이름만", null));
+        var renamedBoards = boardService.update(owner.getId(), "EDIT", owner.getId(), new BoardUpdateRequest(List.of(
+                new BoardUpdateItem(first.getId(), null),
+                new BoardUpdateItem(second.getId(), "이름만"),
+                new BoardUpdateItem(third.getId(), null))));
+        var renamed = renamedBoards.get(1);
         entityManager.clear();
         assertThat(renamed.sortOrder()).isEqualTo(1);
         assertThat(entityManager.find(Board.class, second.getId()).getName()).isEqualTo("이름만");
@@ -438,9 +452,10 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when / then
-        assertThatThrownBy(() -> boardService.update(owner.getId(), "TARGET_EDIT", owner.getId(), board.getId(), new BoardUpdateRequest("변경", null)))
+        assertThatThrownBy(() -> boardService.update(owner.getId(), "TARGET_EDIT", owner.getId(),
+                new BoardUpdateRequest(List.of(new BoardUpdateItem(board.getId(), "변경")))))
                 .isInstanceOfSatisfying(work.managerbe.global.exception.board.BoardException.class,
-                        exception -> assertThat(exception.getErrorCode()).isEqualTo(work.managerbe.global.exception.board.BoardErrorCode.BOARD_NOT_FOUND));
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(work.managerbe.global.exception.board.BoardErrorCode.BOARD_UPDATE_CONFLICT));
         assertThat(entityManager.find(Board.class, board.getId()).getName()).isEqualTo("유지");
     }
 
@@ -458,7 +473,8 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when / then
-        assertThatThrownBy(() -> boardService.update(owner.getId(), "LEFT_EDIT", owner.getId(), board.getId(), new BoardUpdateRequest("변경", null)))
+        assertThatThrownBy(() -> boardService.update(owner.getId(), "LEFT_EDIT", owner.getId(),
+                new BoardUpdateRequest(List.of(new BoardUpdateItem(board.getId(), "변경")))))
                 .isInstanceOf(AccessDeniedException.class);
         assertThat(entityManager.find(Board.class, board.getId()).getName()).isEqualTo("유지");
     }
