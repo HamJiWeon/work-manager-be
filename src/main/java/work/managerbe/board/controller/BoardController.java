@@ -32,7 +32,7 @@ public class BoardController {
     @PostMapping("/boards")
     public ResponseEntity<BoardResponse> create(
             @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
-            @AuthenticationPrincipal(expression = "userId") UUID requesterId,
+            @AuthenticationPrincipal UUID requesterId,
             @Valid @RequestBody BoardCreateRequest request
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -45,7 +45,7 @@ public class BoardController {
     @GetMapping("/boards")
     public ResponseEntity<BoardSliceResponse> getAll(
             @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
-            @AuthenticationPrincipal(expression = "userId") UUID requesterId,
+            @AuthenticationPrincipal UUID requesterId,
             @RequestParam(name = "page", defaultValue = "0") @Min(0) int page,
             @RequestParam(name = "size", defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size
     ) {
@@ -58,7 +58,7 @@ public class BoardController {
     public ResponseEntity<List<BoardResponse>> update(
             @PathVariable("userId") UUID creatorId,
             @PathVariable("code") String code,
-            @AuthenticationPrincipal(expression = "userId") UUID requesterId,
+            @AuthenticationPrincipal UUID requesterId,
             @RequestBody BoardUpdateRequest request
     ) {
         return ResponseEntity.ok(boardService.update(creatorId, code, requesterId, request));

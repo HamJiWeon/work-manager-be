@@ -265,14 +265,8 @@ class BoardControllerTest {
     void 요청자_인증_설정() {
         var context = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
         context.setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
-                new TestPrincipal(REQUESTER_ID), null, List.of()));
+                REQUESTER_ID, null, List.of()));
         org.springframework.security.core.context.SecurityContextHolder.setContext(context);
-    }
-
-    private record TestPrincipal(UUID userId) {
-        public UUID getUserId() {
-            return userId;
-        }
     }
 
     @org.junit.jupiter.api.AfterEach
