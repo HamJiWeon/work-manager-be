@@ -52,4 +52,30 @@ public class Board extends BaseEntity {
         project.registerBoard(board);
         return board;
     }
+
+    /**
+     * 공백 이름을 거절하고 변경된 이름을 감사 시각과 함께 반영한다.
+     */
+    public void rename(String name) {
+        if (name == null || name.isBlank()) {
+            throw BoardException.of(BoardErrorCode.BOARD_INVALID_NAME);
+        }
+        if (!Objects.equals(this.name, name)) {
+            this.name = name;
+            markUpdated();
+        }
+    }
+
+    /**
+     * 프로젝트 목록의 실제 위치로 읽기 전용 순서 필드와 감사 시각을 동기화한다.
+     */
+    public void synchronizeSortOrder(int position) {
+        if (position < 0 || position >= project.getBoards().size() || project.getBoards().get(position) != this) {
+            throw BoardException.of(BoardErrorCode.BOARD_NOT_FOUND);
+        }
+        if (sortOrder != position) {
+            sortOrder = position;
+            markUpdated();
+        }
+    }
 }
