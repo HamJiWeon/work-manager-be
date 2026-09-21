@@ -2,10 +2,10 @@ package work.managerbe.board.service;
 
 import java.util.List;
 import java.util.UUID;
-import work.managerbe.board.dto.BoardCreateRequest;
-import work.managerbe.board.dto.BoardResponse;
-import work.managerbe.board.dto.BoardUpdateRequest;
-import work.managerbe.board.dto.BoardSliceResponse;
+import work.managerbe.board.dto.request.BoardCreateRequest;
+import work.managerbe.board.dto.response.BoardResponse;
+import work.managerbe.board.dto.request.BoardUpdateRequest;
+import work.managerbe.board.dto.response.BoardSliceResponse;
 
 public interface BoardService {
     /**

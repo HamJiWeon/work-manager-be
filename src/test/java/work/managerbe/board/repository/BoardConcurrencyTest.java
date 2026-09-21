@@ -12,7 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import work.managerbe.board.domain.Board;
-import work.managerbe.board.dto.BoardCreateRequest;
+import work.managerbe.board.dto.request.BoardCreateRequest;
 import work.managerbe.board.service.BoardService;
 import work.managerbe.project.domain.Project;
 import work.managerbe.user.domain.User;
