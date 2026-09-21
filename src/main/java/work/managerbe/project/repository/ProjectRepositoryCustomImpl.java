@@ -23,7 +23,7 @@ public class ProjectRepositoryCustomImpl implements ProjectRepositoryCustom {
         QMember member = QMember.member;
 
         List<Project> fetched = queryFactory
-                .select(project)
+                .selectDistinct(project)
                 .from(member)
                 .join(member.project, project)
                 .where(
