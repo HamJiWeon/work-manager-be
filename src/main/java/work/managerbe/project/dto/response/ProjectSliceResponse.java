@@ -2,11 +2,11 @@ package work.managerbe.project.dto.response;
 
 import java.util.List;
 
-public record ProjectPageResponse(
+public record ProjectSliceResponse(
         List<ProjectResponse> content,
         int page,
         int size,
-        long totalElements,
-        int totalPages
+        boolean hasPrevious,
+        boolean hasNext
 ) {
 }

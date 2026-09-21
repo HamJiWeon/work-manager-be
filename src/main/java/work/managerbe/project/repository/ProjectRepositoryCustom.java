@@ -1,14 +1,13 @@
 package work.managerbe.project.repository;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import work.managerbe.project.domain.Project;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface ProjectRepositoryCustom {
 
-    List<Project> findActiveProjects(UUID userId, Pageable pageable);
+    Slice<Project> findActiveProjects(UUID userId, Pageable pageable);
 
-    long countActiveProjects(UUID userId);
 }

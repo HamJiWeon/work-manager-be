@@ -1,12 +1,13 @@
 package work.managerbe.project.repository;
 
-import com.querydsl.core.BooleanBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import work.managerbe.member.domain.QMember;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.domain.QProject;
@@ -17,42 +18,34 @@ public class ProjectRepositoryCustomImpl implements ProjectRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public List<Project> findActiveProjects(UUID userId, Pageable pageable) {
+    public Slice<Project> findActiveProjects(UUID userId, Pageable pageable) {
         QProject project = QProject.project;
         QMember member = QMember.member;
 
-        BooleanBuilder builder = new BooleanBuilder()
-                .and(member.user.id.eq(userId))
-                .and(member.leftAt.isNull());
-
-        return queryFactory
+        List<Project> fetched = queryFactory
                 .select(project)
                 .from(member)
                 .join(member.project, project)
-                .where(builder)
+                .where(
+                        member.user.id.eq(userId),
+                        member.leftAt.isNull()
+                )
                 .orderBy(
                         project.name.asc(),
                         project.createdAt.desc(),
                         project.id.asc()
                 )
                 .offset(pageable.getOffset())
-                .limit(pageable.getPageSize())
+                .limit(pageable.getPageSize() + 1L)
                 .fetch();
-    }
 
-    @Override
-    public long countActiveProjects(UUID userId) {
-        QMember member = QMember.member;
+        boolean hasNext =
+                fetched.size() > pageable.getPageSize();
 
-        Long total = queryFactory
-                .select(member.count())
-                .from(member)
-                .where(
-                        member.user.id.eq(userId),
-                        member.leftAt.isNull()
-                )
-                .fetchOne();
+        List<Project> content = hasNext
+                ? fetched.subList(0, pageable.getPageSize())
+                : fetched;
 
-        return Objects.requireNonNullElse(total, 0L);
+        return new SliceImpl<>(content, pageable, hasNext);
     }
 }

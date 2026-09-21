@@ -8,18 +8,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import work.managerbe.project.domain.Project;
-import work.managerbe.project.dto.response.ProjectPageResponse;
 import work.managerbe.project.dto.response.ProjectResponse;
+import work.managerbe.project.dto.response.ProjectSliceResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 /**
- * 실제 MapStruct 구현체로 프로젝트와 프로젝트 페이지 응답의 전체 필드를 검증한다.
+ * 실제 MapStruct 구현체로 프로젝트와 프로젝트 슬라이스 응답의 전체 필드를 검증한다.
  */
 @ExtendWith(MockitoExtension.class)
 class ProjectMapperTest {
@@ -73,39 +73,39 @@ class ProjectMapperTest {
     }
 
     @Nested
-    @DisplayName("프로젝트 페이지 응답 변환")
-    class ToPageResponse {
+    @DisplayName("프로젝트 슬라이스 응답 변환")
+    class ToSliceResponse {
 
         @Test
-        @DisplayName("목록과 모든 페이지 정보를 응답으로 변환한다.")
-        void 전체_페이지_정보_변환() {
+        @DisplayName("목록과 슬라이스 정보를 응답으로 변환한다.")
+        void 전체_슬라이스_정보_변환() {
             // given
             ProjectResponse first = new ProjectResponse(
                     1L, "FIRST", "첫 프로젝트", 1L, null, null, null);
             ProjectResponse second = new ProjectResponse(
                     2L, "SECOND", "둘째 프로젝트", 1L, null, null, null);
-            Page<ProjectResponse> projects = new PageImpl<>(
+            Slice<ProjectResponse> projects = new SliceImpl<>(
                     List.of(first, second),
                     PageRequest.of(1, 10),
-                    12L
+                    true
             );
 
             // when
-            ProjectPageResponse response = mapper.toPageResponse(projects);
+            ProjectSliceResponse response = mapper.toSliceResponse(projects);
 
             // then
             assertThat(response.content()).containsExactly(first, second);
             assertThat(response.page()).isEqualTo(1);
             assertThat(response.size()).isEqualTo(10);
-            assertThat(response.totalElements()).isEqualTo(12L);
-            assertThat(response.totalPages()).isEqualTo(2);
+            assertThat(response.hasPrevious()).isTrue();
+            assertThat(response.hasNext()).isTrue();
         }
 
         @Test
-        @DisplayName("프로젝트 페이지가 null이면 null을 반환한다.")
-        void 프로젝트_페이지가_null이면_null_반환() {
+        @DisplayName("프로젝트 슬라이스가 null이면 null을 반환한다.")
+        void 프로젝트_슬라이스가_null이면_null_반환() {
             // when
-            ProjectPageResponse response = mapper.toPageResponse(null);
+            ProjectSliceResponse response = mapper.toSliceResponse(null);
 
             // then
             assertThat(response).isNull();

@@ -21,8 +21,8 @@ import tools.jackson.databind.ObjectMapper;
 import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
-import work.managerbe.project.dto.response.ProjectPageResponse;
 import work.managerbe.project.dto.response.ProjectResponse;
+import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.service.ProjectService;
 
 import java.time.LocalDateTime;
@@ -242,13 +242,7 @@ class ProjectControllerTest {
                     LocalDateTime.now(),
                     LocalDateTime.now()
             );
-            ProjectPageResponse response = new ProjectPageResponse(
-                    List.of(project),
-                    1,
-                    10,
-                    11L,
-                    2
-            );
+            ProjectSliceResponse response = new ProjectSliceResponse(List.of(project), 1, 10, true, true);
             when(projectService.getAll(userId, userId, 1)).thenReturn(response);
 
             // when / then
@@ -260,8 +254,8 @@ class ProjectControllerTest {
                     .andExpect(jsonPath("$.content[0].name").value(project.name()))
                     .andExpect(jsonPath("$.page").value(1))
                     .andExpect(jsonPath("$.size").value(10))
-                    .andExpect(jsonPath("$.totalElements").value(11))
-                    .andExpect(jsonPath("$.totalPages").value(2));
+                    .andExpect(jsonPath("$.hasPrevious").value(true))
+                    .andExpect(jsonPath("$.hasNext").value(true));
 
             verify(projectService).getAll(userId, userId, 1);
         }

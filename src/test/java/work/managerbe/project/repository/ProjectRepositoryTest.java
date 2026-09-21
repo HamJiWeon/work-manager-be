@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import work.managerbe.global.config.JpaAuditingConfig;
 import work.managerbe.global.config.QuerydslConfig;
 import work.managerbe.member.domain.Member;
@@ -14,7 +16,6 @@ import work.managerbe.project.domain.Project;
 import work.managerbe.user.domain.User;
 
 import java.util.List;
-import org.springframework.data.domain.PageRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -121,50 +122,23 @@ class ProjectRepositoryTest {
         entityManager.clear();
 
         // when
-        List<Project> firstPage = projectRepository.findActiveProjects(
+        Slice<Project> firstPage = projectRepository.findActiveProjects(
                 user.getId(), PageRequest.of(0, 10));
-        List<Project> secondPage = projectRepository.findActiveProjects(
+        Slice<Project> secondPage = projectRepository.findActiveProjects(
                 user.getId(), PageRequest.of(1, 10));
 
         // then
-        assertThat(firstPage).extracting(Project::getName)
+        assertThat(firstPage.getContent()).extracting(Project::getName)
                 .containsExactly(
                         "프로젝트 00", "프로젝트 01", "프로젝트 02", "프로젝트 03", "프로젝트 04",
                         "프로젝트 05", "프로젝트 06", "프로젝트 07", "프로젝트 08", "프로젝트 09"
                 );
-        assertThat(secondPage).extracting(Project::getName)
+        assertThat(firstPage.hasPrevious()).isFalse();
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(secondPage.getContent()).extracting(Project::getName)
                 .containsExactly("프로젝트 10");
-    }
-
-    /**
-     * 전체 개수에는 요청 사용자의 활성 프로젝트 참여만 포함한다.
-     */
-    @Test
-    void 활성_프로젝트_개수만_조회한다() {
-        // given
-        User otherUser = User.create("다른 참여자", "other-count@example.com", null);
-        entityManager.persist(otherUser);
-
-        Project active = Project.create(user, "ACTIVE", "활성 프로젝트", null);
-        Project left = Project.create(user, "LEFT", "탈퇴 프로젝트", null);
-        Project other = Project.create(otherUser, "OTHER", "다른 사용자 프로젝트", null);
-        entityManager.persist(active);
-        entityManager.persist(left);
-        entityManager.persist(other);
-        entityManager.persist(Member.create(user, active, ROLE));
-        Member leftMember = Member.create(user, left, ROLE);
-        entityManager.persist(leftMember);
-        entityManager.persist(Member.create(otherUser, other, ROLE));
-        entityManager.flush();
-        leftMember.leave(leftMember.getJoinedAt());
-        entityManager.flush();
-        entityManager.clear();
-
-        // when
-        long total = projectRepository.countActiveProjects(user.getId());
-
-        // then
-        assertThat(total).isEqualTo(1L);
+        assertThat(secondPage.hasPrevious()).isTrue();
+        assertThat(secondPage.hasNext()).isFalse();
     }
 
     /**

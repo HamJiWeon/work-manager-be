@@ -3,10 +3,7 @@ package work.managerbe.project.service;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.global.exception.CommonException;
@@ -17,8 +14,8 @@ import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
-import work.managerbe.project.dto.response.ProjectPageResponse;
 import work.managerbe.project.dto.response.ProjectResponse;
+import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.mapper.ProjectMapper;
 import work.managerbe.project.repository.ProjectRepository;
 import work.managerbe.member.domain.Member;
@@ -26,7 +23,6 @@ import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -99,7 +95,7 @@ public class ProjectServiceImpl implements ProjectService{
     }
 
     @Override
-    public ProjectPageResponse getAll(UUID pathUserId, UUID requesterId, int page) {
+    public ProjectSliceResponse getAll(UUID pathUserId, UUID requesterId, int page) {
         userIdValidation(pathUserId);
         userIdValidation(requesterId);
         if (!pathUserId.equals(requesterId)) {
@@ -111,13 +107,11 @@ public class ProjectServiceImpl implements ProjectService{
 
         Pageable pageable = PageRequest.of(page, PROJECT_PAGE_SIZE);
 
-        List<ProjectResponse> content = projectRepository.findActiveProjects(requesterId, pageable).stream()
-                .map(mapper::toResponse)
-                .toList();
-        long totalElements = projectRepository.countActiveProjects(requesterId);
+        Slice<ProjectResponse> projects = projectRepository
+                .findActiveProjects(requesterId, pageable)
+                .map(mapper::toResponse);
 
-        Page<ProjectResponse> result = new PageImpl<>(content, pageable, totalElements);
-        return mapper.toPageResponse(result);
+        return mapper.toSliceResponse(projects);
     }
 
     private static void userIdValidation(UUID userId) {

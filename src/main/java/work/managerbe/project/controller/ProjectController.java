@@ -6,8 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
-import work.managerbe.project.dto.response.ProjectPageResponse;
 import work.managerbe.project.dto.response.ProjectResponse;
+import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.service.ProjectService;
 
 import java.util.UUID;
@@ -42,7 +42,7 @@ public class ProjectController {
     }
 
     @GetMapping("/projects")
-    public ResponseEntity<ProjectPageResponse> getAll(
+    public ResponseEntity<ProjectSliceResponse> getAll(
             @PathVariable("userId") UUID pathUserId,
             @AuthenticationPrincipal UUID requesterId,
             @RequestParam(name = "page", defaultValue = "0") int page

@@ -8,8 +8,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.SliceImpl;
 import work.managerbe.global.exception.CommonException;
 import work.managerbe.global.exception.ErrorCode;
 import work.managerbe.global.exception.project.ProjectErrorCode;
@@ -18,8 +20,8 @@ import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
-import work.managerbe.project.dto.response.ProjectPageResponse;
 import work.managerbe.project.dto.response.ProjectResponse;
+import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.mapper.ProjectMapper;
 import work.managerbe.project.repository.ProjectRepository;
 
@@ -520,17 +522,20 @@ class ProjectServiceImplTest {
             Project second = mock(Project.class);
             ProjectResponse firstResponse = mock(ProjectResponse.class);
             ProjectResponse secondResponse = mock(ProjectResponse.class);
-            ProjectPageResponse expectedResponse = mock(ProjectPageResponse.class);
+            ProjectSliceResponse expectedResponse = mock(ProjectSliceResponse.class);
 
             when(projectRepository.findActiveProjects(eq(userId), any(Pageable.class)))
-                    .thenReturn(List.of(first, second));
-            when(projectRepository.countActiveProjects(userId)).thenReturn(12L);
+                    .thenReturn(new SliceImpl<>(
+                            List.of(first, second),
+                            PageRequest.of(1, 10),
+                            true
+                    ));
             when(mapper.toResponse(first)).thenReturn(firstResponse);
             when(mapper.toResponse(second)).thenReturn(secondResponse);
-            when(mapper.toPageResponse(any())).thenReturn(expectedResponse);
+            when(mapper.toSliceResponse(any())).thenReturn(expectedResponse);
 
             // when
-            ProjectPageResponse response = projectService.getAll(userId, userId, 1);
+            ProjectSliceResponse response = projectService.getAll(userId, userId, 1);
 
             // then
             assertThat(response).isSameAs(expectedResponse);
@@ -538,13 +543,13 @@ class ProjectServiceImplTest {
             verify(projectRepository).findActiveProjects(eq(userId), pageableCaptor.capture());
             assertThat(pageableCaptor.getValue().getPageNumber()).isEqualTo(1);
             assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(10);
-            verify(projectRepository).countActiveProjects(userId);
             verify(mapper).toResponse(first);
             verify(mapper).toResponse(second);
-            verify(mapper).toPageResponse(argThat(result ->
+            verify(mapper).toSliceResponse(argThat(result ->
                     result.getNumber() == 1
                             && result.getSize() == 10
-                            && result.getTotalElements() == 12L
+                            && result.hasPrevious()
+                            && result.hasNext()
                             && result.getContent().equals(List.of(firstResponse, secondResponse))
             ));
         }
