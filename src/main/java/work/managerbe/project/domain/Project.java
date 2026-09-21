@@ -4,8 +4,14 @@ import jakarta.persistence.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import work.managerbe.board.domain.Board;
+import work.managerbe.global.exception.board.BoardErrorCode;
+import work.managerbe.global.exception.board.BoardException;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -67,6 +73,38 @@ public class Project extends BaseEntity {
      */
     public List<Board> getBoards() {
         return Collections.unmodifiableList(boards);
+    }
+
+    /**
+     * 전달된 ID 배열을 최종 순서로 사용하며 현재 보드 전체와 정확히 일치할 때만 목록을 재배치한다.
+     */
+    public void reorderBoards(List<Long> boardIds) {
+        if (boardIds == null || boardIds.size() != boards.size()) {
+            throw BoardException.of(BoardErrorCode.BOARD_UPDATE_CONFLICT);
+        }
+
+        Map<Long, Board> boardsById = new HashMap<>();
+        for (Board board : boards) {
+            Long boardId = board.getId();
+            if (boardId == null || boardsById.put(boardId, board) != null) {
+                throw BoardException.of(BoardErrorCode.BOARD_UPDATE_CONFLICT);
+            }
+        }
+
+        Set<Long> requestedIds = new HashSet<>(boardIds);
+        if (requestedIds.size() != boardIds.size() || !requestedIds.equals(boardsById.keySet())) {
+            throw BoardException.of(BoardErrorCode.BOARD_UPDATE_CONFLICT);
+        }
+
+        List<Board> reorderedBoards = boardIds.stream()
+                .map(boardsById::get)
+                .toList();
+        boards.clear();
+        boards.addAll(reorderedBoards);
+
+        for (int index = 0; index < boards.size(); index++) {
+            boards.get(index).synchronizeSortOrder(index);
+        }
     }
 
     @Builder

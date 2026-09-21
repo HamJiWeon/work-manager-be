@@ -1,6 +1,9 @@
 package work.managerbe.board.controller;
 
 import java.time.LocalDateTime;
+import work.managerbe.board.dto.BoardUpdateItem;
+import work.managerbe.board.dto.BoardUpdateRequest;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import java.util.List;
 import work.managerbe.board.dto.BoardSliceResponse;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -213,6 +216,46 @@ class BoardControllerTest {
         // when / then
         mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE))
                 .andExpect(status().isNotFound());
+    }
+
+    /**
+     * 최종 배열 순서와 이름 변경을 한 요청으로 전달하고 변경된 전체 목록을 반환한다.
+     */
+    @Test
+    void 보드_일괄_수정은_200과_최종_목록을_반환한다() throws Exception {
+        // given
+        var now = LocalDateTime.of(2026, 9, 14, 14, 0);
+        var request = new BoardUpdateRequest(List.of(
+                new BoardUpdateItem(2L, "기획"),
+                new BoardUpdateItem(1L, null)));
+        when(service.update(USER_ID, PROJECT_CODE, REQUESTER_ID, request))
+                .thenReturn(List.of(
+                        new BoardResponse(2L, 1L, "기획", 0, now, now),
+                        new BoardResponse(1L, 1L, "개발", 1, now, now)));
+        // when / then
+        mvc.perform(patch("/{userId}/{code}/boards", USER_ID, PROJECT_CODE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"boards\":[{\"boardId\":2,\"name\":\"기획\"},{\"boardId\":1,\"name\":null}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(2))
+                .andExpect(jsonPath("$[0].name").value("기획"))
+                .andExpect(jsonPath("$[0].sortOrder").value(0))
+                .andExpect(jsonPath("$[1].id").value(1))
+                .andExpect(jsonPath("$[1].sortOrder").value(1));
+        verify(service).update(USER_ID, PROJECT_CODE, REQUESTER_ID, request);
+    }
+
+    @Test
+    void 최신_목록과_다른_수정_요청은_409로_반환한다() throws Exception {
+        // given
+        when(service.update(eq(USER_ID), eq(PROJECT_CODE), eq(REQUESTER_ID), any()))
+                .thenThrow(BoardException.of(BoardErrorCode.BOARD_UPDATE_CONFLICT));
+        // when / then
+        mvc.perform(patch("/{userId}/{code}/boards", USER_ID, PROJECT_CODE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"boards\":[{\"boardId\":1,\"name\":null}]}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BOARD_UPDATE_CONFLICT"));
     }
 
     /**
