@@ -5,6 +5,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.List;
+import work.managerbe.global.exception.CommonException;
+import work.managerbe.global.exception.ErrorCode;
 import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
 import org.junit.jupiter.api.Nested;
@@ -20,6 +22,7 @@ import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
 import work.managerbe.project.dto.response.ProjectResponse;
+import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.service.ProjectService;
 
 import java.time.LocalDateTime;
@@ -218,6 +221,93 @@ class ProjectControllerTest {
             verify(projectService).get(creatorId, "WORK", null);
         }
 
+    }
+
+    @Nested
+    @DisplayName("GET /{userId}/projects")
+    class GetAllProjects {
+
+        @Test
+        @DisplayName("페이지 번호에 해당하는 프로젝트 목록과 페이지 정보를 반환한다.")
+        void 프로젝트_전체_조회() throws Exception {
+            // given
+            UUID userId = UUID.randomUUID();
+            authenticate(userId);
+            ProjectResponse project = new ProjectResponse(
+                    1L,
+                    "WORK",
+                    "업무 관리",
+                    1L,
+                    "프로젝트 설명",
+                    LocalDateTime.now(),
+                    LocalDateTime.now()
+            );
+            ProjectSliceResponse response = new ProjectSliceResponse(List.of(project), 1, 10, true, true);
+            when(projectService.getAll(userId, userId, 1)).thenReturn(response);
+
+            // when / then
+            mockMvc.perform(get("/{userId}/projects", userId)
+                            .param("page", "1"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].id").value(project.id()))
+                    .andExpect(jsonPath("$.content[0].code").value(project.code()))
+                    .andExpect(jsonPath("$.content[0].name").value(project.name()))
+                    .andExpect(jsonPath("$.page").value(1))
+                    .andExpect(jsonPath("$.size").value(10))
+                    .andExpect(jsonPath("$.hasPrevious").value(true))
+                    .andExpect(jsonPath("$.hasNext").value(true));
+
+            verify(projectService).getAll(userId, userId, 1);
+        }
+
+        @Test
+        @DisplayName("음수 페이지 요청이면 400을 반환한다.")
+        void 음수_페이지_요청시_400_반환() throws Exception {
+            // given
+            UUID userId = UUID.randomUUID();
+            authenticate(userId);
+            when(projectService.getAll(userId, userId, -1))
+                    .thenThrow(CommonException.of(ErrorCode.INVALID_REQUEST));
+
+            // when / then
+            mockMvc.perform(get("/{userId}/projects", userId)
+                            .param("page", "-1"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+            verify(projectService).getAll(userId, userId, -1);
+        }
+
+        @Test
+        @DisplayName("경로 사용자와 인증 사용자가 다르면 403을 반환한다.")
+        void 다른_사용자의_프로젝트_목록_조회시_403_반환() throws Exception {
+            // given
+            UUID pathUserId = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+            authenticate(requesterId);
+            when(projectService.getAll(pathUserId, requesterId, 0))
+                    .thenThrow(CommonException.of(ErrorCode.FORBIDDEN));
+
+            // when / then
+            mockMvc.perform(get("/{userId}/projects", pathUserId)
+                            .param("page", "0"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+            verify(projectService).getAll(pathUserId, requesterId, 0);
+        }
+
+        @Test
+        @DisplayName("사용자 ID가 UUID 형식이 아니면 400을 반환한다.")
+        void 사용자_ID_형식_오류시_400_반환() throws Exception {
+            // when / then
+            mockMvc.perform(get("/{userId}/projects", "invalid-user-id")
+                            .param("page", "0"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+            verifyNoInteractions(projectService);
+        }
     }
 
     /**

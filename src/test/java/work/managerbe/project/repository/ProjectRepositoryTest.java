@@ -7,7 +7,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import work.managerbe.global.config.JpaAuditingConfig;
+import work.managerbe.global.config.QuerydslConfig;
 import work.managerbe.member.domain.Member;
 import work.managerbe.project.domain.Project;
 import work.managerbe.user.domain.User;
@@ -20,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 참여 조회와 별개로 생성자 및 코드 기준의 존재 조회를 실제 JPA 쿼리로 검증한다.
  */
 @DataJpaTest
-@Import(JpaAuditingConfig.class)
+@Import({JpaAuditingConfig.class, QuerydslConfig.class})
 class ProjectRepositoryTest {
 
     private static final String ROLE = "MEMBER";
@@ -98,6 +101,46 @@ class ProjectRepositoryTest {
         // then
         assertThat(projects).isEmpty();
     }
+
+    /**
+     * 활성 참여 프로젝트만 이름순으로 정렬하고 요청한 페이지 크기만큼 조회한다.
+     */
+    @Test
+    void 활성_프로젝트를_이름순으로_페이지_조회한다() {
+        // given
+        for (int index = 10; index >= 0; index--) {
+            Project project = Project.create(
+                    user,
+                    "PROJECT_" + index,
+                    "프로젝트 " + String.format("%02d", index),
+                    null
+            );
+            entityManager.persist(project);
+            entityManager.persist(Member.create(user, project, ROLE));
+        }
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        Slice<Project> firstPage = projectRepository.findActiveProjects(
+                user.getId(), PageRequest.of(0, 10));
+        Slice<Project> secondPage = projectRepository.findActiveProjects(
+                user.getId(), PageRequest.of(1, 10));
+
+        // then
+        assertThat(firstPage.getContent()).extracting(Project::getName)
+                .containsExactly(
+                        "프로젝트 00", "프로젝트 01", "프로젝트 02", "프로젝트 03", "프로젝트 04",
+                        "프로젝트 05", "프로젝트 06", "프로젝트 07", "프로젝트 08", "프로젝트 09"
+                );
+        assertThat(firstPage.hasPrevious()).isFalse();
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(secondPage.getContent()).extracting(Project::getName)
+                .containsExactly("프로젝트 10");
+        assertThat(secondPage.hasPrevious()).isTrue();
+        assertThat(secondPage.hasNext()).isFalse();
+    }
+
     /**
      * OWNER 멤버 등록 없이도 프로젝트 생성자 필드와 정확한 코드 조합으로 조회한다.
      */

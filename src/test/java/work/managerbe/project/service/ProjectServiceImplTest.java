@@ -8,7 +8,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.SliceImpl;
+import work.managerbe.global.exception.CommonException;
+import work.managerbe.global.exception.ErrorCode;
 import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.global.exception.user.UserErrorCode;
@@ -16,6 +21,7 @@ import work.managerbe.global.exception.user.UserException;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
 import work.managerbe.project.dto.response.ProjectResponse;
+import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.mapper.ProjectMapper;
 import work.managerbe.project.repository.ProjectRepository;
 
@@ -26,6 +32,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import java.util.Optional;
+import java.util.List;
 import work.managerbe.member.domain.Member;
 import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.user.domain.User;
@@ -500,6 +507,104 @@ class ProjectServiceImplTest {
             verifyNoInteractions(projectRepository, mapper);
         }
 
+    }
+
+    @Nested
+    @DisplayName("getAll")
+    class GetAll {
+
+        @Test
+        @DisplayName("10개 단위의 프로젝트 페이지를 응답으로 변환한다.")
+        void 프로젝트_전체_조회() {
+            // given
+            UUID userId = UUID.randomUUID();
+            Project first = mock(Project.class);
+            Project second = mock(Project.class);
+            ProjectResponse firstResponse = mock(ProjectResponse.class);
+            ProjectResponse secondResponse = mock(ProjectResponse.class);
+            ProjectSliceResponse expectedResponse = mock(ProjectSliceResponse.class);
+
+            when(projectRepository.findActiveProjects(eq(userId), any(Pageable.class)))
+                    .thenReturn(new SliceImpl<>(
+                            List.of(first, second),
+                            PageRequest.of(1, 10),
+                            true
+                    ));
+            when(mapper.toResponse(first)).thenReturn(firstResponse);
+            when(mapper.toResponse(second)).thenReturn(secondResponse);
+            when(mapper.toSliceResponse(any())).thenReturn(expectedResponse);
+
+            // when
+            ProjectSliceResponse response = projectService.getAll(userId, userId, 1);
+
+            // then
+            assertThat(response).isSameAs(expectedResponse);
+            ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+            verify(projectRepository).findActiveProjects(eq(userId), pageableCaptor.capture());
+            assertThat(pageableCaptor.getValue().getPageNumber()).isEqualTo(1);
+            assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(10);
+            verify(mapper).toResponse(first);
+            verify(mapper).toResponse(second);
+            verify(mapper).toSliceResponse(argThat(result ->
+                    result.getNumber() == 1
+                            && result.getSize() == 10
+                            && result.hasPrevious()
+                            && result.hasNext()
+                            && result.getContent().equals(List.of(firstResponse, secondResponse))
+            ));
+        }
+
+        @Test
+        @DisplayName("음수 페이지면 조회하지 않고 잘못된 요청 예외를 발생시킨다.")
+        void 음수_페이지_조회_거절() {
+            // given
+            UUID userId = UUID.randomUUID();
+
+            // when
+            CommonException exception = assertThrows(
+                    CommonException.class,
+                    () -> projectService.getAll(userId, userId, -1)
+            );
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST);
+            verifyNoInteractions(projectRepository, mapper);
+        }
+
+        @Test
+        @DisplayName("사용자 ID가 없으면 조회하지 않는다.")
+        void 사용자_ID가_없으면_조회_거절() {
+            // given
+            UUID requesterId = UUID.randomUUID();
+
+            // when
+            UserException exception = assertThrows(
+                    UserException.class,
+                    () -> projectService.getAll(null, requesterId, 0)
+            );
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
+            verifyNoInteractions(projectRepository, mapper);
+        }
+
+        @Test
+        @DisplayName("경로 사용자와 인증 사용자가 다르면 조회하지 않는다.")
+        void 다른_사용자의_프로젝트_목록_조회_거절() {
+            // given
+            UUID pathUserId = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+
+            // when
+            CommonException exception = assertThrows(
+                    CommonException.class,
+                    () -> projectService.getAll(pathUserId, requesterId, 0)
+            );
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+            verifyNoInteractions(projectRepository, mapper);
+        }
     }
 
 }
