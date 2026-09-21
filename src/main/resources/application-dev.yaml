@@ -5,3 +5,8 @@ spring:
     username: sa
     password: ""
     driver-class-name: org.h2.Driver
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false

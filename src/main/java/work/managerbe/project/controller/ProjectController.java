@@ -32,7 +32,6 @@ public class ProjectController {
     /**
      * 생성자 ID와 코드로 프로젝트를 조회하고 요청자의 활성 멤버십을 확인한다.
      *
-     * TODO: 로그인 구현 후 실제 인증 principal 타입에 맞춰 요청자 UUID를 추출하도록 변경한다.
      */
     @GetMapping(PRJ_CODE)
     public ResponseEntity<ProjectResponse> get(

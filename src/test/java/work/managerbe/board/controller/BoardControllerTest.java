@@ -1,12 +1,12 @@
 package work.managerbe.board.controller;
 
 import java.time.LocalDateTime;
-import work.managerbe.board.dto.BoardUpdateItem;
-import work.managerbe.board.dto.BoardUpdateRequest;
+import work.managerbe.board.dto.request.BoardUpdateItem;
+import work.managerbe.board.dto.request.BoardUpdateRequest;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import java.util.List;
-import work.managerbe.board.dto.BoardSliceResponse;
+import work.managerbe.board.dto.response.BoardSliceResponse;
 import org.junit.jupiter.params.provider.CsvSource;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import java.util.UUID;
@@ -20,8 +20,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import work.managerbe.board.dto.BoardCreateRequest;
-import work.managerbe.board.dto.BoardResponse;
+import work.managerbe.board.dto.request.BoardCreateRequest;
+import work.managerbe.board.dto.response.BoardResponse;
 import work.managerbe.board.service.BoardService;
 import work.managerbe.global.exception.board.BoardErrorCode;
 import work.managerbe.global.exception.board.BoardException;

@@ -2,6 +2,7 @@ package work.managerbe.board.dto;
 
 import org.junit.jupiter.api.Test;
 import work.managerbe.board.domain.Board;
+import work.managerbe.board.dto.response.BoardResponse;
 import work.managerbe.project.domain.Project;
 
 import java.time.LocalDateTime;

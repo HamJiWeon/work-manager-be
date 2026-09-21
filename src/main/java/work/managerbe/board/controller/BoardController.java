@@ -10,10 +10,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import work.managerbe.board.dto.BoardCreateRequest;
-import work.managerbe.board.dto.BoardResponse;
-import work.managerbe.board.dto.BoardUpdateRequest;
-import work.managerbe.board.dto.BoardSliceResponse;
+import work.managerbe.board.dto.request.BoardCreateRequest;
+import work.managerbe.board.dto.response.BoardResponse;
+import work.managerbe.board.dto.request.BoardUpdateRequest;
+import work.managerbe.board.dto.response.BoardSliceResponse;
 import work.managerbe.board.service.BoardService;
 import work.managerbe.global.constant.ApiPaths;
 
