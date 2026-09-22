@@ -125,4 +125,8 @@ public class Project extends BaseEntity {
                 .description(description)
                 .build();
     }
+
+    public void rename(String name) {
+        this.name = name;
+    }
 }
