@@ -661,7 +661,7 @@ class ProjectServiceImplTest {
             );
             ProjectUpdateRequest request = new ProjectUpdateRequest("변경된 이름", null);
             ProjectResponse expectedResponse = mock(ProjectResponse.class);
-            when(projectRepository.findByCreator_IdAndCode(creatorId, "WORK"))
+            when(projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, "WORK"))
                     .thenReturn(Optional.of(project));
             when(mapper.toResponse(project)).thenReturn(expectedResponse);
 
@@ -672,7 +672,7 @@ class ProjectServiceImplTest {
             assertThat(project.getName()).isEqualTo("변경된 이름");
             assertThat(project.getDescription()).isEqualTo("설명");
             assertThat(response).isSameAs(expectedResponse);
-            verify(projectRepository).findByCreator_IdAndCode(creatorId, "WORK");
+            verify(projectRepository).findByCreatorIdAndCodeForUpdate(creatorId, "WORK");
             verify(projectRepository).flush();
             verify(mapper).toResponse(project);
         }
@@ -688,7 +688,7 @@ class ProjectServiceImplTest {
                     "기존 설명"
             );
             ProjectUpdateRequest request = new ProjectUpdateRequest(null, "변경된 설명");
-            when(projectRepository.findByCreator_IdAndCode(creatorId, "WORK"))
+            when(projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, "WORK"))
                     .thenReturn(Optional.of(project));
 
             // when
@@ -711,7 +711,7 @@ class ProjectServiceImplTest {
                     "기존 설명"
             );
             ProjectUpdateRequest request = new ProjectUpdateRequest("변경된 이름", "변경된 설명");
-            when(projectRepository.findByCreator_IdAndCode(creatorId, "WORK"))
+            when(projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, "WORK"))
                     .thenReturn(Optional.of(project));
 
             // when
@@ -734,7 +734,7 @@ class ProjectServiceImplTest {
                     "기존 설명"
             );
             ProjectUpdateRequest request = new ProjectUpdateRequest(null, null);
-            when(projectRepository.findByCreator_IdAndCode(creatorId, "WORK"))
+            when(projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, "WORK"))
                     .thenReturn(Optional.of(project));
 
             // when
@@ -773,7 +773,7 @@ class ProjectServiceImplTest {
             // given
             UUID creatorId = UUID.randomUUID();
             ProjectUpdateRequest request = new ProjectUpdateRequest("변경된 이름", null);
-            when(projectRepository.findByCreator_IdAndCode(creatorId, "WORK"))
+            when(projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, "WORK"))
                     .thenReturn(Optional.empty());
 
             // when

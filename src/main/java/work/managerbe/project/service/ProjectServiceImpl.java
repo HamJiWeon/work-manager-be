@@ -127,7 +127,7 @@ public class ProjectServiceImpl implements ProjectService{
         projectCodeValidation(code);
         projectCreatorPermissionValidation(creatorId, requesterId);
 
-        Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
+        Project project = projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, code)
                 .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
         project.update(request.name(), request.description());
