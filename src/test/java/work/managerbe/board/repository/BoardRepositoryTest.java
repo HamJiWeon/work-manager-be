@@ -44,6 +44,46 @@ class BoardRepositoryTest {
     private final BoardService boardService;
     private final ProjectService projectService;
 
+    @Test
+    void 보드_삭제시_카드도_삭제되고_남은_보드_순서가_당겨진다() {
+        // given
+        User creator = User.create("생성자", "board-delete@example.com", null);
+        entityManager.persist(creator);
+        var project = projectService.create(creator.getId(),
+                new ProjectCreateRequest("DELETE", "프로젝트", null));
+        var first = boardService.create(creator.getId(), project.code(), creator.getId(), new BoardCreateRequest("첫 보드"));
+        var second = boardService.create(creator.getId(), project.code(), creator.getId(), new BoardCreateRequest("둘째 보드"));
+        Member member = entityManager.createQuery(
+                        "select m from Member m where m.user.id = :userId and m.project.id = :projectId", Member.class)
+                .setParameter("userId", creator.getId())
+                .setParameter("projectId", project.id())
+                .getSingleResult();
+        entityManager.flush();
+        entityManager.createNativeQuery("""
+                INSERT INTO cards (user_id, member_id, project_id, board_id,
+                    title, content, created_at, updated_at)
+                VALUES (:userId, :memberId, :projectId, :boardId,
+                    '카드', '내용', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """)
+                .setParameter("userId", creator.getId())
+                .setParameter("memberId", member.getId())
+                .setParameter("projectId", project.id())
+                .setParameter("boardId", first.id())
+                .executeUpdate();
+        entityManager.clear();
+
+        // when
+        boardService.delete(creator.getId(), project.code(), creator.getId(), first.id());
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        assertThat(boardRepository.findById(first.id())).isEmpty();
+        assertThat((Long) entityManager.createNativeQuery("select count(*) from cards where board_id = :boardId", Long.class)
+                .setParameter("boardId", first.id()).getSingleResult()).isZero();
+        assertThat(boardRepository.findById(second.id()).orElseThrow().getSortOrder()).isZero();
+    }
+
     @Autowired
     BoardRepositoryTest(BoardRepository boardRepository, EntityManager entityManager, BoardService boardService,
                         ProjectService projectService) {

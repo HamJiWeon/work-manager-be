@@ -76,6 +76,15 @@ public class Project extends BaseEntity {
     }
 
     /**
+     * 프로젝트 목록에서 보드를 제거해 남은 보드의 순서를 다시 기록한다.
+     */
+    public void removeBoard(Board board) {
+        if (board == null || board.getProject() != this || !boards.remove(board)) {
+            throw BoardException.of(BoardErrorCode.BOARD_NOT_FOUND);
+        }
+    }
+
+    /**
      * 전달된 ID 배열을 최종 순서로 사용하며 현재 보드 전체와 정확히 일치할 때만 목록을 재배치한다.
      */
     public void reorderBoards(List<Long> boardIds) {

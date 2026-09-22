@@ -16,6 +16,7 @@ import work.managerbe.board.dto.BoardUpdateRequest;
 import work.managerbe.board.dto.BoardUpdateItem;
 import work.managerbe.board.dto.BoardSliceResponse;
 import work.managerbe.board.repository.BoardRepository;
+import work.managerbe.card.repository.CardRepository;
 import work.managerbe.global.exception.board.BoardErrorCode;
 import work.managerbe.global.exception.board.BoardException;
 import work.managerbe.global.exception.project.ProjectErrorCode;
@@ -37,6 +38,7 @@ import work.managerbe.member.repository.MemberRepository;
 public class BoardServiceImpl implements BoardService {
 
     private final BoardRepository boardRepository;
+    private final CardRepository cardRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final MemberRepository memberRepository;
@@ -62,10 +64,9 @@ public class BoardServiceImpl implements BoardService {
         validateCreatorId(creatorId);
         validateProjectCode(code);
 
-        Project project = projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, code)
-                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        Project project = findProjectForUpdate(creatorId, code);
 
-        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(requesterId, project.getId())) {
+        if (!memberRepository.existsByUserIdAndProjectId(requesterId, project.getId())) {
             throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 생성할 수 있습니다.");
         }
 
@@ -98,7 +99,7 @@ public class BoardServiceImpl implements BoardService {
         Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
                 .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
-        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(requesterId, project.getId())) {
+        if (!memberRepository.existsByUserIdAndProjectId(requesterId, project.getId())) {
             throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 조회할 수 있습니다.");
         }
 
@@ -127,10 +128,9 @@ public class BoardServiceImpl implements BoardService {
         validateCreatorId(creatorId);
         validateProjectCode(code);
         
-        Project project = projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, code)
-                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        Project project = findProjectForUpdate(creatorId, code);
 
-        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(requesterId, project.getId())) {
+        if (!memberRepository.existsByUserIdAndProjectId(requesterId, project.getId())) {
             throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 수정할 수 있습니다.");
         }
 
@@ -155,6 +155,32 @@ public class BoardServiceImpl implements BoardService {
     }
 
     /**
+     * 프로젝트 행을 잠그고 활성 멤버를 확인한 뒤 카드, 보드 순으로 삭제한다.
+     * 보드가 다른 프로젝트에 속하거나 존재하지 않으면 같은 오류를 반환한다.
+     */
+    @Override
+    public void delete(UUID creatorId, String code, UUID requesterId, Long boardId) {
+        validateUserExists(requesterId);
+        validateCreatorId(creatorId);
+        validateProjectCode(code);
+
+        Project project = findProjectForUpdate(creatorId, code);
+
+        if (!memberRepository.existsByUserIdAndProjectId(requesterId, project.getId())) {
+            throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 삭제할 수 있습니다.");
+        }
+
+        Board board = project.getBoards().stream()
+                .filter(candidate -> candidate.getId().equals(boardId))
+                .findFirst()
+                .orElseThrow(() -> BoardException.of(BoardErrorCode.BOARD_NOT_FOUND));
+
+        cardRepository.deleteAllByBoard_Id(boardId);
+        project.removeBoard(board);
+        boardRepository.delete(board);
+    }
+
+    /**
      * 수정 요청에 전체 보드 배열과 중복 없는 ID가 있고 전달된 이름이 공백이 아닌지 확인한다.
      * 개별 필드 값의 유효성은 후속 검증에서 확인한다.
      *
@@ -175,6 +201,19 @@ public class BoardServiceImpl implements BoardService {
                 throw BoardException.of(BoardErrorCode.BOARD_INVALID_NAME);
             }
         }
+    }
+
+    /**
+     * 생성자 ID와 코드로 프로젝트 행을 잠가 조회하고 없으면 프로젝트 오류를 반환한다.
+     *
+     * @param creatorId 프로젝트 생성자 ID
+     * @param code 프로젝트 코드
+     * @return 잠금이 적용된 프로젝트
+     * @throws ProjectException 프로젝트를 찾을 수 없는 경우
+     */
+    private Project findProjectForUpdate(UUID creatorId, String code) {
+        return projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
     }
 
     /**
