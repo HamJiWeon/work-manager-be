@@ -82,6 +82,9 @@ public class Project extends BaseEntity {
         if (board == null || board.getProject() != this || !boards.remove(board)) {
             throw BoardException.of(BoardErrorCode.BOARD_NOT_FOUND);
         }
+        for (int index = 0; index < boards.size(); index++) {
+            boards.get(index).synchronizeSortOrder(index);
+        }
     }
 
     /**

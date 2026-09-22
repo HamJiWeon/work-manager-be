@@ -15,6 +15,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ProjectTest {
 
     @Test
+    void 앞의_보드를_제거하면_남은_보드의_순서가_즉시_갱신된다() {
+        // given
+        Project project = Project.create(User.create("생성자", "order-after-delete@example.com", null),
+                "WORK", "프로젝트", null);
+        Board first = project.addBoard("첫 보드");
+        Board second = project.addBoard("둘째 보드");
+        Board third = project.addBoard("셋째 보드");
+
+        // when
+        project.removeBoard(first);
+
+        // then
+        assertThat(project.getBoards()).containsExactly(second, third);
+        assertThat(second.getSortOrder()).isZero();
+        assertThat(third.getSortOrder()).isEqualTo(1);
+    }
+
+    @Test
     void null이거나_이미_제거된_보드는_다시_제거할_수_없다() {
         // given
         Project project = Project.create(User.create("생성자", "remove@example.com", null), "WORK", "프로젝트", null);
