@@ -25,4 +25,23 @@ class ProjectTest {
         assertThat(project.getNextCardNumber()).isEqualTo(1L);
         assertThat(project.getBoards()).isEmpty();
     }
+
+    /**
+     * 프로젝트 이름 변경은 다른 프로젝트 속성을 유지하고 이름만 교체한다.
+     */
+    @Test
+    void 프로젝트_이름을_변경한다() {
+        // given
+        User creator = User.create("생성자", "creator@example.com", null);
+        Project project = Project.create(creator, "WORK", "기존 이름", "설명");
+
+        // when
+        project.rename("변경된 이름");
+
+        // then
+        assertThat(project.getName()).isEqualTo("변경된 이름");
+        assertThat(project.getCreator()).isSameAs(creator);
+        assertThat(project.getCode()).isEqualTo("WORK");
+        assertThat(project.getDescription()).isEqualTo("설명");
+    }
 }

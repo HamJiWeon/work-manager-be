@@ -20,6 +20,7 @@ import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
+import work.managerbe.project.dto.request.ProjectUpdateRequest;
 import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.mapper.ProjectMapper;
@@ -603,6 +604,133 @@ class ProjectServiceImplTest {
 
             // then
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+            verifyNoInteractions(projectRepository, mapper);
+        }
+    }
+
+    @Nested
+    @DisplayName("update")
+    class Update {
+
+        /**
+         * 생성자와 요청자가 같으면 생성자 범위의 프로젝트 이름을 변경하고 flush 후 응답한다.
+         */
+        @Test
+        void 생성자가_프로젝트_이름을_수정한다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            Project project = Project.create(
+                    User.create("생성자", "creator@example.com", null),
+                    "WORK",
+                    "기존 이름",
+                    "설명"
+            );
+            ProjectUpdateRequest request = new ProjectUpdateRequest("변경된 이름");
+            ProjectResponse expectedResponse = mock(ProjectResponse.class);
+            when(projectRepository.findByCreator_IdAndCode(creatorId, "WORK"))
+                    .thenReturn(Optional.of(project));
+            when(mapper.toResponse(project)).thenReturn(expectedResponse);
+
+            // when
+            ProjectResponse response = projectService.update(creatorId, "WORK", creatorId, request);
+
+            // then
+            assertThat(project.getName()).isEqualTo("변경된 이름");
+            assertThat(response).isSameAs(expectedResponse);
+            verify(projectRepository).findByCreator_IdAndCode(creatorId, "WORK");
+            verify(projectRepository).flush();
+            verify(mapper).toResponse(project);
+        }
+
+        /**
+         * 요청자가 생성자가 아니면 프로젝트를 조회하거나 수정하지 않는다.
+         */
+        @Test
+        void 생성자가_아닌_사용자의_수정을_거절한다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+            ProjectUpdateRequest request = new ProjectUpdateRequest("변경된 이름");
+
+            // when
+            CommonException exception = assertThrows(CommonException.class,
+                    () -> projectService.update(creatorId, "WORK", requesterId, request));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+            verifyNoInteractions(projectRepository, mapper);
+        }
+
+        /**
+         * 생성자와 코드가 일치하는 프로젝트가 없으면 수정하지 않는다.
+         */
+        @Test
+        void 프로젝트가_없으면_수정을_거절한다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            ProjectUpdateRequest request = new ProjectUpdateRequest("변경된 이름");
+            when(projectRepository.findByCreator_IdAndCode(creatorId, "WORK"))
+                    .thenReturn(Optional.empty());
+
+            // when
+            ProjectException exception = assertThrows(ProjectException.class,
+                    () -> projectService.update(creatorId, "WORK", creatorId, request));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND);
+            verify(projectRepository, never()).flush();
+            verifyNoInteractions(mapper);
+        }
+
+        @ParameterizedTest
+        @NullSource
+        @ValueSource(strings = {"", "   "})
+        void 프로젝트_이름이_유효하지_않으면_수정을_거절한다(String name) {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            ProjectUpdateRequest request = new ProjectUpdateRequest(name);
+
+            // when
+            ProjectException exception = assertThrows(ProjectException.class,
+                    () -> projectService.update(creatorId, "WORK", creatorId, request));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_INVALID_NAME);
+            verifyNoInteractions(projectRepository, mapper);
+        }
+
+        @ParameterizedTest
+        @NullSource
+        @ValueSource(strings = {"", "   "})
+        void 프로젝트_코드가_유효하지_않으면_수정을_거절한다(String code) {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            ProjectUpdateRequest request = new ProjectUpdateRequest("변경된 이름");
+
+            // when
+            ProjectException exception = assertThrows(ProjectException.class,
+                    () -> projectService.update(creatorId, code, creatorId, request));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE);
+            verifyNoInteractions(projectRepository, mapper);
+        }
+
+        /**
+         * 인증 요청자 ID가 없으면 프로젝트를 조회하지 않는다.
+         */
+        @Test
+        void 요청자_ID가_없으면_수정을_거절한다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            ProjectUpdateRequest request = new ProjectUpdateRequest("변경된 이름");
+
+            // when
+            UserException exception = assertThrows(UserException.class,
+                    () -> projectService.update(creatorId, "WORK", null, request));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
             verifyNoInteractions(projectRepository, mapper);
         }
     }
