@@ -88,6 +88,46 @@ class BoardServiceImplTest {
     }
 
     @Test
+    void null_보드_ID는_삭제하지_않는다() {
+        // given
+        Project project = spy(Project.create(User.create("생성자", "null-board@example.com", null),
+                PROJECT_CODE, "프로젝트", null));
+        Board board = project.addBoard("보드");
+        doReturn(PROJECT_ID).when(project).getId();
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(project));
+        when(memberRepository.existsByUserIdAndProjectId(USER_ID, PROJECT_ID)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, PROJECT_CODE, USER_ID, null))
+                .isInstanceOfSatisfying(BoardException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_NOT_FOUND));
+        assertThat(project.getBoards()).containsExactly(board);
+        verifyNoInteractions(cardRepository, boardRepository);
+    }
+
+    @Test
+    void ID가_없는_보드가_있어도_없는_보드_삭제는_404를_반환한다() {
+        // given
+        Project project = spy(Project.create(User.create("생성자", "transient-board@example.com", null),
+                PROJECT_CODE, "프로젝트", null));
+        Board board = project.addBoard("저장 전 보드");
+        doReturn(PROJECT_ID).when(project).getId();
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(project));
+        when(memberRepository.existsByUserIdAndProjectId(USER_ID, PROJECT_ID)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, PROJECT_CODE, USER_ID, 2L))
+                .isInstanceOfSatisfying(BoardException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_NOT_FOUND));
+        assertThat(project.getBoards()).containsExactly(board);
+        verifyNoInteractions(cardRepository, boardRepository);
+    }
+
+    @Test
     void 활성_멤버가_아니면_보드와_카드를_삭제하지_않는다() {
         // given
         Project project = spy(Project.create(User.create("생성자", "denied-delete@example.com", null),

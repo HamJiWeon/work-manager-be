@@ -170,8 +170,12 @@ public class BoardServiceImpl implements BoardService {
             throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 삭제할 수 있습니다.");
         }
 
+        if (boardId == null) {
+            throw BoardException.of(BoardErrorCode.BOARD_NOT_FOUND);
+        }
+
         Board board = project.getBoards().stream()
-                .filter(candidate -> candidate.getId().equals(boardId))
+                .filter(candidate -> boardId.equals(candidate.getId()))
                 .findFirst()
                 .orElseThrow(() -> BoardException.of(BoardErrorCode.BOARD_NOT_FOUND));
 
