@@ -87,6 +87,25 @@ class BoardServiceImplTest {
         verifyNoInteractions(cardRepository, boardRepository);
     }
 
+    @Test
+    void 활성_멤버가_아니면_보드와_카드를_삭제하지_않는다() {
+        // given
+        Project project = spy(Project.create(User.create("생성자", "denied-delete@example.com", null),
+                PROJECT_CODE, "프로젝트", null));
+        Board board = project.addBoard("보드");
+        doReturn(PROJECT_ID).when(project).getId();
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(project));
+
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, PROJECT_CODE, USER_ID, 2L))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(memberRepository).existsByUserIdAndProjectId(USER_ID, PROJECT_ID);
+        assertThat(project.getBoards()).containsExactly(board);
+        verifyNoInteractions(cardRepository, boardRepository);
+    }
+
     /**
      * 실제 도메인 생성 경로에서 한도 예외가 전파되고 목록 변경과 저장이 발생하지 않는지 검증한다.
      */
