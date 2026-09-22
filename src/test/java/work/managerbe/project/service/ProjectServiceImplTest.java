@@ -66,6 +66,23 @@ class ProjectServiceImplTest {
     @Nested
     @DisplayName("create")
     class Create {
+
+        /**
+         * 생성 요청 객체가 없으면 저장소 접근 전에 잘못된 요청으로 거절한다.
+         */
+        @Test
+        void 생성_요청이_null이면_잘못된_요청으로_거절한다() {
+            // given
+            UUID userId = UUID.randomUUID();
+
+            // when
+            CommonException exception = assertThrows(CommonException.class,
+                    () -> projectService.create(userId, null));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST);
+            verifyNoInteractions(userRepository, projectRepository, memberRepository, mapper);
+        }
       
         /**
          * 생성자가 없으면 프로젝트와 멤버 저장 전에 요청을 거절한다.
@@ -611,6 +628,23 @@ class ProjectServiceImplTest {
     @Nested
     @DisplayName("update")
     class Update {
+
+        /**
+         * 수정 요청 객체가 없으면 저장소 접근 전에 잘못된 요청으로 거절한다.
+         */
+        @Test
+        void 수정_요청이_null이면_잘못된_요청으로_거절한다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+
+            // when
+            CommonException exception = assertThrows(CommonException.class,
+                    () -> projectService.update(creatorId, "WORK", creatorId, null));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST);
+            verifyNoInteractions(projectRepository, mapper);
+        }
 
         /**
          * 생성자와 요청자가 같으면 생성자 범위의 프로젝트 이름을 변경하고 flush 후 응답한다.
