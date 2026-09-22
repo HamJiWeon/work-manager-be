@@ -46,6 +46,9 @@ public class ProjectServiceImpl implements ProjectService{
     @Override
     @Transactional
     public ProjectResponse create(UUID userId ,ProjectCreateRequest request) {
+        if(request == null) {
+            throw CommonException.of(ErrorCode.INVALID_REQUEST);
+        }
         projectCodeValidation(request.code());
         projectNameValidation(request.name());
         userIdValidation(userId);
@@ -96,9 +99,7 @@ public class ProjectServiceImpl implements ProjectService{
     public ProjectSliceResponse getAll(UUID pathUserId, UUID requesterId, int page) {
         userIdValidation(pathUserId);
         userIdValidation(requesterId);
-        if (!pathUserId.equals(requesterId)) {
-            throw CommonException.of(ErrorCode.FORBIDDEN);
-        }
+        projectCreatorPermissionValidation(pathUserId, requesterId);
         if (page < 0) {
             throw CommonException.of(ErrorCode.INVALID_REQUEST);
         }
@@ -115,13 +116,14 @@ public class ProjectServiceImpl implements ProjectService{
     @Override
     @Transactional
     public ProjectResponse update(UUID creatorId, String code, UUID requesterId, ProjectUpdateRequest request) {
+        if(request == null) {
+            throw CommonException.of(ErrorCode.INVALID_REQUEST);
+        }
         userIdValidation(creatorId);
         userIdValidation(requesterId);
         projectCodeValidation(code);
         projectNameValidation(request.name());
-        if (!creatorId.equals(requesterId)) {
-            throw CommonException.of(ErrorCode.FORBIDDEN);
-        }
+        projectCreatorPermissionValidation(creatorId, requesterId);
 
         Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
                 .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
@@ -129,6 +131,12 @@ public class ProjectServiceImpl implements ProjectService{
         project.rename(request.name());
         projectRepository.flush();
         return mapper.toResponse(project);
+    }
+
+    private static void projectCreatorPermissionValidation(UUID creatorId, UUID requesterId) {
+        if (!creatorId.equals(requesterId)) {
+            throw CommonException.of(ErrorCode.FORBIDDEN);
+        }
     }
 
     private static void userIdValidation(UUID userId) {
