@@ -1,6 +1,7 @@
 package work.managerbe.project.dto.request;
 
 public record ProjectUpdateRequest(
-        String name
+        String name,
+        String description
 ) {
 }

@@ -119,16 +119,18 @@ public class ProjectServiceImpl implements ProjectService{
         if(request == null) {
             throw CommonException.of(ErrorCode.INVALID_REQUEST);
         }
+        if (request.name() != null) {
+            projectNameValidation(request.name());
+        }
         userIdValidation(creatorId);
         userIdValidation(requesterId);
         projectCodeValidation(code);
-        projectNameValidation(request.name());
         projectCreatorPermissionValidation(creatorId, requesterId);
 
         Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
                 .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
-        project.rename(request.name());
+        project.update(request.name(), request.description());
         projectRepository.flush();
         return mapper.toResponse(project);
     }

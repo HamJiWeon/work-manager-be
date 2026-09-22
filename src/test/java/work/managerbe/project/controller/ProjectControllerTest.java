@@ -322,7 +322,7 @@ class ProjectControllerTest {
             // given
             UUID creatorId = UUID.randomUUID();
             authenticate(creatorId);
-            ProjectUpdateRequest request = new ProjectUpdateRequest("변경된 이름");
+            ProjectUpdateRequest request = new ProjectUpdateRequest("변경된 이름", null);
             ProjectResponse response = new ProjectResponse(
                     1L,
                     "WORK",
@@ -352,7 +352,7 @@ class ProjectControllerTest {
             // given
             UUID creatorId = UUID.randomUUID();
             authenticate(creatorId);
-            ProjectUpdateRequest request = new ProjectUpdateRequest("   ");
+            ProjectUpdateRequest request = new ProjectUpdateRequest("   ", null);
             when(projectService.update(creatorId, "WORK", creatorId, request))
                     .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_INVALID_NAME));
 

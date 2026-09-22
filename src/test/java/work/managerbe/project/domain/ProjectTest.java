@@ -26,22 +26,73 @@ class ProjectTest {
         assertThat(project.getBoards()).isEmpty();
     }
 
-    /**
-     * 프로젝트 이름 변경은 다른 프로젝트 속성을 유지하고 이름만 교체한다.
-     */
     @Test
-    void 프로젝트_이름을_변경한다() {
+    void 이름만_전달하면_설명은_유지한다() {
         // given
         User creator = User.create("생성자", "creator@example.com", null);
         Project project = Project.create(creator, "WORK", "기존 이름", "설명");
 
         // when
-        project.rename("변경된 이름");
+        project.update("변경된 이름", null);
 
         // then
         assertThat(project.getName()).isEqualTo("변경된 이름");
-        assertThat(project.getCreator()).isSameAs(creator);
-        assertThat(project.getCode()).isEqualTo("WORK");
         assertThat(project.getDescription()).isEqualTo("설명");
+    }
+
+    @Test
+    void 설명만_전달하면_이름은_유지한다() {
+        // given
+        User creator = User.create("생성자", "creator@example.com", null);
+        Project project = Project.create(creator, "WORK", "기존 이름", "기존 설명");
+
+        // when
+        project.update(null, "변경된 설명");
+
+        // then
+        assertThat(project.getName()).isEqualTo("기존 이름");
+        assertThat(project.getDescription()).isEqualTo("변경된 설명");
+    }
+
+    @Test
+    void 이름과_설명을_함께_변경한다() {
+        // given
+        User creator = User.create("생성자", "creator@example.com", null);
+        Project project = Project.create(creator, "WORK", "기존 이름", "기존 설명");
+
+        // when
+        project.update("변경된 이름", "변경된 설명");
+
+        // then
+        assertThat(project.getName()).isEqualTo("변경된 이름");
+        assertThat(project.getDescription()).isEqualTo("변경된 설명");
+    }
+
+    @Test
+    void 이름과_설명이_모두_null이면_기존_값을_유지한다() {
+        // given
+        User creator = User.create("생성자", "creator@example.com", null);
+        Project project = Project.create(creator, "WORK", "기존 이름", "기존 설명");
+
+        // when
+        project.update(null, null);
+
+        // then
+        assertThat(project.getName()).isEqualTo("기존 이름");
+        assertThat(project.getDescription()).isEqualTo("기존 설명");
+    }
+
+    @Test
+    void 빈_문자열_설명은_설명을_삭제한다() {
+        // given
+        User creator = User.create("생성자", "creator@example.com", null);
+        Project project = Project.create(creator, "WORK", "기존 이름", "기존 설명");
+
+        // when
+        project.update(null, "");
+
+        // then
+        assertThat(project.getName()).isEqualTo("기존 이름");
+        assertThat(project.getDescription()).isEmpty();
     }
 }

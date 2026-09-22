@@ -39,7 +39,7 @@ class ProjectServiceIntegrationTest {
     }
 
     /**
-     * 수정 서비스를 호출하면 새 이름과 감사 수정 시각을 실제 DB에 저장하고 같은 값을 응답한다.
+     * 수정 서비스를 호출하면 새 이름과 설명 및 감사 수정 시각을 실제 DB에 저장하고 같은 값을 응답한다.
      */
     @Test
     void 프로젝트_수정은_이름과_수정시각을_DB와_응답에_반영한다() {
@@ -66,14 +66,16 @@ class ProjectServiceIntegrationTest {
                 creator.getId(),
                 "WORK",
                 creator.getId(),
-                new ProjectUpdateRequest("변경된 이름")
+                new ProjectUpdateRequest("변경된 이름", "변경된 설명")
         );
         entityManager.clear();
 
         // then
         Project updatedProject = entityManager.find(Project.class, projectId);
         assertThat(response.name()).isEqualTo("변경된 이름");
+        assertThat(response.description()).isEqualTo("변경된 설명");
         assertThat(updatedProject.getName()).isEqualTo("변경된 이름");
+        assertThat(updatedProject.getDescription()).isEqualTo("변경된 설명");
         assertThat(response.updatedAt()).isAfter(PREVIOUS_UPDATED_AT);
         assertThat(updatedProject.getUpdatedAt())
                 .isCloseTo(response.updatedAt(), within(1, ChronoUnit.MICROS));
