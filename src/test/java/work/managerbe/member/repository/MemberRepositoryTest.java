@@ -36,6 +36,25 @@ class MemberRepositoryTest {
     private User user;
     private Project project;
 
+    @Test
+    void 활성_멤버만_사용자와_프로젝트로_조회한다() {
+        // given
+        Member member = memberRepository.saveAndFlush(Member.create(user, project, ROLE));
+        User otherUser = User.create("다른 사용자", "active-check@example.com", null);
+        entityManager.persist(otherUser);
+
+        // when / then
+        assertThat(memberRepository.existsByUserIdAndProjectId(user.getId(), project.getId())).isTrue();
+        assertThat(memberRepository.existsByUserIdAndProjectId(otherUser.getId(), project.getId())).isFalse();
+
+        // given
+        member.leave(LocalDateTime.now().plusSeconds(1));
+        memberRepository.flush();
+
+        // when / then
+        assertThat(memberRepository.existsByUserIdAndProjectId(user.getId(), project.getId())).isFalse();
+    }
+
     @Autowired
     MemberRepositoryTest(MemberRepository memberRepository, EntityManager entityManager) {
         this.memberRepository = memberRepository;

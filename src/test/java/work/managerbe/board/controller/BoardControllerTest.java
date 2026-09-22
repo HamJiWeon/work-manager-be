@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import work.managerbe.board.dto.BoardUpdateItem;
 import work.managerbe.board.dto.BoardUpdateRequest;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import java.util.List;
 import work.managerbe.board.dto.BoardSliceResponse;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -43,6 +44,26 @@ class BoardControllerTest {
     private static final UUID REQUESTER_ID = UUID.randomUUID();
     private static final UUID USER_ID = UUID.randomUUID();
     private static final String PROJECT_CODE = "TEST_ABC";
+
+    @Test
+    void 보드_삭제는_204를_반환한다() throws Exception {
+        // given / when / then
+        mvc.perform(delete("/{userId}/{code}/boards/{boardId}", USER_ID, PROJECT_CODE, 3L))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+        verify(service).delete(USER_ID, PROJECT_CODE, REQUESTER_ID, 3L);
+    }
+
+    @Test
+    void 없는_보드_삭제는_404를_반환한다() throws Exception {
+        // given
+        doThrow(BoardException.of(BoardErrorCode.BOARD_NOT_FOUND))
+                .when(service).delete(USER_ID, PROJECT_CODE, REQUESTER_ID, 3L);
+        // when / then
+        mvc.perform(delete("/{userId}/{code}/boards/{boardId}", USER_ID, PROJECT_CODE, 3L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("BOARD_NOT_FOUND"));
+    }
 
     /**
      * 보드 순서 한도 예외가 공통 오류 처리기를 통해 409 응답으로 변환되는지 검증한다.

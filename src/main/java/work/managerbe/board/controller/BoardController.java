@@ -18,7 +18,7 @@ import work.managerbe.board.service.BoardService;
 import work.managerbe.global.constant.ApiPaths;
 
 @RestController
-@RequestMapping(ApiPaths.USER_BASE + ApiPaths.PRJ_CODE)
+@RequestMapping(ApiPaths.USER_BASE + ApiPaths.PRJ_CODE + "/boards")
 @RequiredArgsConstructor
 public class BoardController {
 
@@ -29,7 +29,7 @@ public class BoardController {
     /**
      * 생성자와 코드로 프로젝트를 식별하고 인증된 요청자의 보드 생성 결과를 반환한다.
      */
-    @PostMapping("/boards")
+    @PostMapping()
     public ResponseEntity<BoardResponse> create(
             @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
             @AuthenticationPrincipal UUID requesterId,
@@ -42,7 +42,7 @@ public class BoardController {
     /**
      * 생성자와 코드, 인증된 요청자를 전달하고 조회 크기를 1부터 100까지 제한한다.
      */
-    @GetMapping("/boards")
+    @GetMapping()
     public ResponseEntity<BoardSliceResponse> getAll(
             @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
             @AuthenticationPrincipal UUID requesterId,
@@ -54,7 +54,7 @@ public class BoardController {
     /**
      * 요청 배열의 순서대로 프로젝트 보드를 재배치하고 전달된 이름을 함께 수정한다.
      */
-    @PatchMapping("/boards")
+    @PatchMapping()
     public ResponseEntity<List<BoardResponse>> update(
             @PathVariable("userId") UUID creatorId,
             @PathVariable("code") String code,
@@ -62,5 +62,19 @@ public class BoardController {
             @RequestBody BoardUpdateRequest request
     ) {
         return ResponseEntity.ok(boardService.update(creatorId, code, requesterId, request));
+    }
+
+    /**
+     * 인증된 활성 멤버의 삭제 요청을 서비스에 전달하고 빈 응답을 반환한다.
+     */
+    @DeleteMapping("/{boardId}")
+    public ResponseEntity<Void> delete(
+            @PathVariable("userId") UUID creatorId,
+            @PathVariable("code") String code,
+            @PathVariable("boardId") Long boardId,
+            @AuthenticationPrincipal UUID requesterId
+    ) {
+        boardService.delete(creatorId, code, requesterId, boardId);
+        return ResponseEntity.noContent().build();
     }
 }

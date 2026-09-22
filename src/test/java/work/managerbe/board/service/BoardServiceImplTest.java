@@ -20,6 +20,7 @@ import work.managerbe.board.dto.BoardCreateRequest;
 import work.managerbe.board.dto.BoardUpdateItem;
 import work.managerbe.board.dto.BoardUpdateRequest;
 import work.managerbe.board.repository.BoardRepository;
+import work.managerbe.card.repository.CardRepository;
 import work.managerbe.global.exception.board.BoardException;
 import work.managerbe.global.exception.board.BoardErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
@@ -44,10 +45,106 @@ class BoardServiceImplTest {
     private static final Long PROJECT_ID = 1L;
     private static final String PROJECT_CODE = "TEST";
     @Mock BoardRepository boardRepository;
+    @Mock CardRepository cardRepository;
     @Mock ProjectRepository projectRepository;
     @Mock UserRepository userRepository;
     @Mock MemberRepository memberRepository;
     @InjectMocks BoardServiceImpl service;
+
+    @Test
+    void 보드_삭제시_카드를_먼저_삭제하고_목록에서_제거한다() {
+        // given
+        Project project = spy(Project.create(User.create("생성자", "delete@example.com", null), PROJECT_CODE, "프로젝트", null));
+        Board board = mock(Board.class);
+        when(board.getProject()).thenReturn(project);
+        when(board.getId()).thenReturn(2L);
+        project.registerBoard(board);
+        doReturn(PROJECT_ID).when(project).getId();
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE)).thenReturn(Optional.of(project));
+        when(memberRepository.existsByUserIdAndProjectId(USER_ID, PROJECT_ID)).thenReturn(true);
+        // when
+        service.delete(CREATOR_ID, PROJECT_CODE, USER_ID, 2L);
+        // then
+        assertThat(project.getBoards()).isEmpty();
+        var order = inOrder(cardRepository, boardRepository);
+        order.verify(cardRepository).deleteAllByBoard_Id(2L);
+        order.verify(boardRepository).delete(board);
+    }
+
+    @Test
+    void 없는_보드는_카드와_보드를_삭제하지_않는다() {
+        // given
+        Project project = spy(Project.create(User.create("생성자", "missing@example.com", null), PROJECT_CODE, "프로젝트", null));
+        doReturn(PROJECT_ID).when(project).getId();
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE)).thenReturn(Optional.of(project));
+        when(memberRepository.existsByUserIdAndProjectId(USER_ID, PROJECT_ID)).thenReturn(true);
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, PROJECT_CODE, USER_ID, 2L))
+                .isInstanceOfSatisfying(BoardException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_NOT_FOUND));
+        verifyNoInteractions(cardRepository, boardRepository);
+    }
+
+    @Test
+    void null_보드_ID는_삭제하지_않는다() {
+        // given
+        Project project = spy(Project.create(User.create("생성자", "null-board@example.com", null),
+                PROJECT_CODE, "프로젝트", null));
+        Board board = project.addBoard("보드");
+        doReturn(PROJECT_ID).when(project).getId();
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(project));
+        when(memberRepository.existsByUserIdAndProjectId(USER_ID, PROJECT_ID)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, PROJECT_CODE, USER_ID, null))
+                .isInstanceOfSatisfying(BoardException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_NOT_FOUND));
+        assertThat(project.getBoards()).containsExactly(board);
+        verifyNoInteractions(cardRepository, boardRepository);
+    }
+
+    @Test
+    void ID가_없는_보드가_있어도_없는_보드_삭제는_404를_반환한다() {
+        // given
+        Project project = spy(Project.create(User.create("생성자", "transient-board@example.com", null),
+                PROJECT_CODE, "프로젝트", null));
+        Board board = project.addBoard("저장 전 보드");
+        doReturn(PROJECT_ID).when(project).getId();
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(project));
+        when(memberRepository.existsByUserIdAndProjectId(USER_ID, PROJECT_ID)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, PROJECT_CODE, USER_ID, 2L))
+                .isInstanceOfSatisfying(BoardException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_NOT_FOUND));
+        assertThat(project.getBoards()).containsExactly(board);
+        verifyNoInteractions(cardRepository, boardRepository);
+    }
+
+    @Test
+    void 활성_멤버가_아니면_보드와_카드를_삭제하지_않는다() {
+        // given
+        Project project = spy(Project.create(User.create("생성자", "denied-delete@example.com", null),
+                PROJECT_CODE, "프로젝트", null));
+        Board board = project.addBoard("보드");
+        doReturn(PROJECT_ID).when(project).getId();
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(project));
+
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, PROJECT_CODE, USER_ID, 2L))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(memberRepository).existsByUserIdAndProjectId(USER_ID, PROJECT_ID);
+        assertThat(project.getBoards()).containsExactly(board);
+        verifyNoInteractions(cardRepository, boardRepository);
+    }
 
     /**
      * 실제 도메인 생성 경로에서 한도 예외가 전파되고 목록 변경과 저장이 발생하지 않는지 검증한다.
@@ -62,7 +159,7 @@ class BoardServiceImplTest {
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         doReturn(PROJECT_ID).when(project).getId();
         when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE)).thenReturn(Optional.of(project));
-        when(memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID)).thenReturn(true);
+        when(memberRepository.existsByUserIdAndProjectId(USER_ID, PROJECT_ID)).thenReturn(true);
 
         // when / then
         assertThatThrownBy(() -> service.create(CREATOR_ID, PROJECT_CODE, USER_ID, new BoardCreateRequest("보드")))
@@ -80,7 +177,7 @@ class BoardServiceImplTest {
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         doReturn(PROJECT_ID).when(project).getId();
         when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE)).thenReturn(Optional.of(project));
-        when(memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID)).thenReturn(true);
+        when(memberRepository.existsByUserIdAndProjectId(USER_ID, PROJECT_ID)).thenReturn(true);
         when(boardRepository.save(any(Board.class))).thenAnswer(invocation -> invocation.getArgument(0));
         // when
         var response = service.create(CREATOR_ID, PROJECT_CODE, USER_ID, new BoardCreateRequest("Board API"));
@@ -107,7 +204,7 @@ class BoardServiceImplTest {
         // when / then
         assertThatThrownBy(() -> service.create(CREATOR_ID, PROJECT_CODE, USER_ID, new BoardCreateRequest("보드")))
                 .isInstanceOf(AccessDeniedException.class);
-        verify(memberRepository).existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID);
+        verify(memberRepository).existsByUserIdAndProjectId(USER_ID, PROJECT_ID);
         assertThat(project.getBoards()).isEmpty();
         verifyNoInteractions(boardRepository);
     }
@@ -202,7 +299,7 @@ class BoardServiceImplTest {
         // when / then
         assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 0, 20))
                 .isInstanceOf(AccessDeniedException.class);
-        verify(memberRepository).existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID);
+        verify(memberRepository).existsByUserIdAndProjectId(USER_ID, PROJECT_ID);
         verify(projectRepository, never()).findByCreatorIdAndCodeForUpdate(any(), any());
         verifyNoInteractions(boardRepository);
     }
@@ -319,7 +416,7 @@ class BoardServiceImplTest {
         when(userRepository.existsById(USER_ID)).thenReturn(true);
         when(projectRepository.findByCreatorIdAndCodeForUpdate(CREATOR_ID, PROJECT_CODE))
                 .thenReturn(Optional.of(project));
-        when(memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNull(USER_ID, PROJECT_ID)).thenReturn(true);
+        when(memberRepository.existsByUserIdAndProjectId(USER_ID, PROJECT_ID)).thenReturn(true);
         var request = new BoardUpdateRequest(List.of(
                 new BoardUpdateItem(2L, "변경"),
                 new BoardUpdateItem(1L, null)));

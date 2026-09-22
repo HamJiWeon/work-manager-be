@@ -22,4 +22,9 @@ public interface BoardService {
      * 활성 멤버가 전달한 배열 순서대로 전체 보드를 재배치하고 이름을 함께 수정한다.
      */
     List<BoardResponse> update(UUID creatorId, String code, UUID requesterId, BoardUpdateRequest request);
+
+    /**
+     * 활성 멤버가 지정한 보드와 그 안의 카드를 삭제한다.
+     */
+    void delete(UUID creatorId, String code, UUID requesterId, Long boardId);
 }
