@@ -21,6 +21,7 @@ import tools.jackson.databind.ObjectMapper;
 import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
+import work.managerbe.project.dto.request.ProjectUpdateRequest;
 import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.service.ProjectService;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -303,6 +305,77 @@ class ProjectControllerTest {
             // when / then
             mockMvc.perform(get("/{userId}/projects", "invalid-user-id")
                             .param("page", "0"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+            verifyNoInteractions(projectService);
+        }
+    }
+
+    @Nested
+    @DisplayName("PATCH /{userId}/{code}")
+    class UpdateProject {
+
+        @Test
+        @DisplayName("인증된 생성자의 이름 수정 요청이면 200과 수정된 프로젝트를 반환한다.")
+        void 프로젝트_이름_수정() throws Exception {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            authenticate(creatorId);
+            ProjectUpdateRequest request = new ProjectUpdateRequest("변경된 이름", null);
+            ProjectResponse response = new ProjectResponse(
+                    1L,
+                    "WORK",
+                    request.name(),
+                    1L,
+                    "프로젝트 설명",
+                    LocalDateTime.now(),
+                    LocalDateTime.now()
+            );
+            when(projectService.update(creatorId, "WORK", creatorId, request)).thenReturn(response);
+
+            // when / then
+            mockMvc.perform(patch("/{userId}/{code}", creatorId, "WORK")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(response.id()))
+                    .andExpect(jsonPath("$.code").value(response.code()))
+                    .andExpect(jsonPath("$.name").value("변경된 이름"));
+
+            verify(projectService).update(creatorId, "WORK", creatorId, request);
+        }
+
+        @Test
+        @DisplayName("이름이 유효하지 않으면 서비스의 400 예외 응답을 반환한다.")
+        void 유효하지_않은_이름_수정시_400_반환() throws Exception {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            authenticate(creatorId);
+            ProjectUpdateRequest request = new ProjectUpdateRequest("   ", null);
+            when(projectService.update(creatorId, "WORK", creatorId, request))
+                    .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_INVALID_NAME));
+
+            // when / then
+            mockMvc.perform(patch("/{userId}/{code}", creatorId, "WORK")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("PROJECT_INVALID_NAME"));
+
+            verify(projectService).update(creatorId, "WORK", creatorId, request);
+        }
+
+        @Test
+        @DisplayName("요청 본문이 없으면 서비스를 호출하지 않고 400을 반환한다.")
+        void 본문_누락시_400_반환() throws Exception {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            authenticate(creatorId);
+
+            // when / then
+            mockMvc.perform(patch("/{userId}/{code}", creatorId, "WORK")
+                            .contentType(MediaType.APPLICATION_JSON))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 

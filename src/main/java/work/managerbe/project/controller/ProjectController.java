@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
+import work.managerbe.project.dto.request.ProjectUpdateRequest;
 import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.service.ProjectService;
@@ -50,4 +51,13 @@ public class ProjectController {
         return ResponseEntity.ok(projectService.getAll(pathUserId, requesterId, page));
     }
 
+    @PatchMapping(PRJ_CODE)
+    public ResponseEntity<ProjectResponse> update(
+            @PathVariable("userId") UUID creatorId,
+            @PathVariable("code") String code,
+            @AuthenticationPrincipal UUID requesterId,
+            @RequestBody ProjectUpdateRequest request
+    ) {
+        return ResponseEntity.ok(projectService.update(creatorId, code, requesterId, request));
+    }
 }

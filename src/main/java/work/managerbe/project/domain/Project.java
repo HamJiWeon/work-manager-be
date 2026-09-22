@@ -125,4 +125,13 @@ public class Project extends BaseEntity {
                 .description(description)
                 .build();
     }
+
+    public void update(String name, String description) {
+        if (name != null) {
+            this.name = name;
+        }
+        if (description != null) {
+            this.description = description;
+        }
+    }
 }

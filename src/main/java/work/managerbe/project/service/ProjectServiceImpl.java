@@ -14,6 +14,7 @@ import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
+import work.managerbe.project.dto.request.ProjectUpdateRequest;
 import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.mapper.ProjectMapper;
@@ -45,13 +46,15 @@ public class ProjectServiceImpl implements ProjectService{
     @Override
     @Transactional
     public ProjectResponse create(UUID userId ,ProjectCreateRequest request) {
-        projectCodeValidation(request);
-        projectNameValidation(request);
+        if(request == null) {
+            throw CommonException.of(ErrorCode.INVALID_REQUEST);
+        }
+        projectCodeValidation(request.code());
+        projectNameValidation(request.name());
         userIdValidation(userId);
         if(request.code().contains("_")) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_FORMAT);
         }
-
 
         User creator = userRepository.findById(userId)
                 .orElseThrow(() -> UserException.of(UserErrorCode.USER_NOT_FOUND));
@@ -81,9 +84,7 @@ public class ProjectServiceImpl implements ProjectService{
     public ProjectResponse get(UUID creatorId, String code, UUID requesterId) {
         userIdValidation(creatorId);
         userIdValidation(requesterId);
-        if(code == null || code.isBlank()) {
-            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE);
-        }
+        projectCodeValidation(code);
 
         Project project = projectRepository
                 .findAccessibleProject(creatorId, code, requesterId)
@@ -98,9 +99,7 @@ public class ProjectServiceImpl implements ProjectService{
     public ProjectSliceResponse getAll(UUID pathUserId, UUID requesterId, int page) {
         userIdValidation(pathUserId);
         userIdValidation(requesterId);
-        if (!pathUserId.equals(requesterId)) {
-            throw CommonException.of(ErrorCode.FORBIDDEN);
-        }
+        projectCreatorPermissionValidation(pathUserId, requesterId);
         if (page < 0) {
             throw CommonException.of(ErrorCode.INVALID_REQUEST);
         }
@@ -114,20 +113,48 @@ public class ProjectServiceImpl implements ProjectService{
         return mapper.toSliceResponse(projects);
     }
 
+    @Override
+    @Transactional
+    public ProjectResponse update(UUID creatorId, String code, UUID requesterId, ProjectUpdateRequest request) {
+        if(request == null) {
+            throw CommonException.of(ErrorCode.INVALID_REQUEST);
+        }
+        if (request.name() != null) {
+            projectNameValidation(request.name());
+        }
+        userIdValidation(creatorId);
+        userIdValidation(requesterId);
+        projectCodeValidation(code);
+        projectCreatorPermissionValidation(creatorId, requesterId);
+
+        Project project = projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+
+        project.update(request.name(), request.description());
+        projectRepository.flush();
+        return mapper.toResponse(project);
+    }
+
+    private static void projectCreatorPermissionValidation(UUID creatorId, UUID requesterId) {
+        if (!creatorId.equals(requesterId)) {
+            throw CommonException.of(ErrorCode.FORBIDDEN);
+        }
+    }
+
     private static void userIdValidation(UUID userId) {
         if (userId == null) {
             throw UserException.of(UserErrorCode.USER_NOT_FOUND);
         }
     }
 
-    private static void projectNameValidation(ProjectCreateRequest request) {
-        if(request.name() == null || request.name().isBlank()) {
+    private static void projectNameValidation(String name) {
+        if(name == null || name.isBlank()) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_NAME);
         }
     }
 
-    private static void projectCodeValidation(ProjectCreateRequest request) {
-        if(request.code() == null || request.code().isBlank()) {
+    private static void projectCodeValidation(String code) {
+        if(code == null || code.isBlank()) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE);
         }
     }
