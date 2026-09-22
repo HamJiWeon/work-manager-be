@@ -14,6 +14,7 @@ import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.dto.request.ProjectCreateRequest;
+import work.managerbe.project.dto.request.ProjectUpdateRequest;
 import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.mapper.ProjectMapper;
@@ -45,13 +46,12 @@ public class ProjectServiceImpl implements ProjectService{
     @Override
     @Transactional
     public ProjectResponse create(UUID userId ,ProjectCreateRequest request) {
-        projectCodeValidation(request);
-        projectNameValidation(request);
+        projectCodeValidation(request.code());
+        projectNameValidation(request.name());
         userIdValidation(userId);
         if(request.code().contains("_")) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE_FORMAT);
         }
-
 
         User creator = userRepository.findById(userId)
                 .orElseThrow(() -> UserException.of(UserErrorCode.USER_NOT_FOUND));
@@ -81,9 +81,7 @@ public class ProjectServiceImpl implements ProjectService{
     public ProjectResponse get(UUID creatorId, String code, UUID requesterId) {
         userIdValidation(creatorId);
         userIdValidation(requesterId);
-        if(code == null || code.isBlank()) {
-            throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE);
-        }
+        projectCodeValidation(code);
 
         Project project = projectRepository
                 .findAccessibleProject(creatorId, code, requesterId)
@@ -114,20 +112,39 @@ public class ProjectServiceImpl implements ProjectService{
         return mapper.toSliceResponse(projects);
     }
 
+    @Override
+    @Transactional
+    public ProjectResponse update(UUID creatorId, String code, UUID requesterId, ProjectUpdateRequest request) {
+        userIdValidation(creatorId);
+        userIdValidation(requesterId);
+        projectCodeValidation(code);
+        projectNameValidation(request.name());
+        if (!creatorId.equals(requesterId)) {
+            throw CommonException.of(ErrorCode.FORBIDDEN);
+        }
+
+        Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+
+        project.rename(request.name());
+        projectRepository.flush();
+        return mapper.toResponse(project);
+    }
+
     private static void userIdValidation(UUID userId) {
         if (userId == null) {
             throw UserException.of(UserErrorCode.USER_NOT_FOUND);
         }
     }
 
-    private static void projectNameValidation(ProjectCreateRequest request) {
-        if(request.name() == null || request.name().isBlank()) {
+    private static void projectNameValidation(String name) {
+        if(name == null || name.isBlank()) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_NAME);
         }
     }
 
-    private static void projectCodeValidation(ProjectCreateRequest request) {
-        if(request.code() == null || request.code().isBlank()) {
+    private static void projectCodeValidation(String code) {
+        if(code == null || code.isBlank()) {
             throw ProjectException.of(ProjectErrorCode.PROJECT_INVALID_CODE);
         }
     }
