@@ -10,5 +10,5 @@ public interface WorkspaceRepository extends JpaRepository<Workspace, Long> {
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from Workspace w where w.project.id = :projectId")
-    int deleteAllByProjectId(@Param("projectId") Long projectId);
+    void deleteAllByProjectId(@Param("projectId") Long projectId);
 }

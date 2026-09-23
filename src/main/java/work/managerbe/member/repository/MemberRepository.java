@@ -24,5 +24,5 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from Member m where m.project.id = :projectId")
-    int deleteAllByProjectId(@Param("projectId") Long projectId);
+    void deleteAllByProjectId(@Param("projectId") Long projectId);
 }

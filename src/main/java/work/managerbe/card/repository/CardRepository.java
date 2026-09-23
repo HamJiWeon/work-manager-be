@@ -14,5 +14,5 @@ public interface CardRepository extends JpaRepository<Card, Long> {
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from Card c where c.project.id = :projectId")
-    int deleteAllByProjectId(@Param("projectId") Long projectId);
+    void deleteAllByProjectId(@Param("projectId") Long projectId);
 }
