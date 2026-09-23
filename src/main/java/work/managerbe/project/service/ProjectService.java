@@ -16,4 +16,6 @@ public interface ProjectService {
     ProjectSliceResponse getAll(UUID pathUserId, UUID requesterId, int page);
 
     ProjectResponse update(UUID creatorId, String code, UUID requesterId, ProjectUpdateRequest request);
+
+    void delete(UUID creatorId, String code, UUID requesterId);
 }

@@ -6,6 +6,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import work.managerbe.board.repository.BoardRepository;
+import work.managerbe.card.repository.CardRepository;
 import work.managerbe.global.exception.CommonException;
 import work.managerbe.global.exception.ErrorCode;
 import work.managerbe.global.exception.project.ProjectErrorCode;
@@ -23,6 +25,7 @@ import work.managerbe.member.domain.Member;
 import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
+import work.managerbe.workspace.repository.WorkspaceRepository;
 
 import java.util.Locale;
 import java.util.UUID;
@@ -39,6 +42,9 @@ public class ProjectServiceImpl implements ProjectService{
     private final ProjectMapper mapper;
     private final UserRepository userRepository;
     private final MemberRepository memberRepository;
+    private final BoardRepository boardRepository;
+    private final CardRepository cardRepository;
+    private final WorkspaceRepository workspaceRepository;
 
     /**
      * 생성자 존재를 검증하고 프로젝트와 생성자의 활성 멤버 관계를 같은 트랜잭션에 저장한다.
@@ -133,6 +139,25 @@ public class ProjectServiceImpl implements ProjectService{
         project.update(request.name(), request.description());
         projectRepository.flush();
         return mapper.toResponse(project);
+    }
+
+    @Override
+    @Transactional
+    public void delete(UUID creatorId, String code, UUID requesterId) {
+        userIdValidation(creatorId);
+        userIdValidation(requesterId);
+        projectCodeValidation(code);
+        projectCreatorPermissionValidation(creatorId, requesterId);
+
+        Project project = projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        Long projectId = project.getId();
+
+        cardRepository.deleteAllByProjectId(projectId);
+        boardRepository.deleteAllByProjectId(projectId);
+        workspaceRepository.deleteAllByProjectId(projectId);
+        memberRepository.deleteAllByProjectId(projectId);
+        projectRepository.delete(project);
     }
 
     private static void projectCreatorPermissionValidation(UUID creatorId, UUID requesterId) {
