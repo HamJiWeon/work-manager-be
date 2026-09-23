@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
@@ -25,6 +26,8 @@ import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.mapper.ProjectMapper;
 import work.managerbe.project.repository.ProjectRepository;
+import work.managerbe.board.repository.BoardRepository;
+import work.managerbe.card.repository.CardRepository;
 
 import java.sql.SQLException;
 import org.hibernate.exception.ConstraintViolationException;
@@ -38,6 +41,7 @@ import work.managerbe.member.domain.Member;
 import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
+import work.managerbe.workspace.repository.WorkspaceRepository;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -59,6 +63,15 @@ class ProjectServiceImplTest {
 
     @Mock
     private MemberRepository memberRepository;
+
+    @Mock
+    private BoardRepository boardRepository;
+
+    @Mock
+    private CardRepository cardRepository;
+
+    @Mock
+    private WorkspaceRepository workspaceRepository;
 
     @InjectMocks
     private ProjectServiceImpl projectService;
@@ -835,6 +848,86 @@ class ProjectServiceImplTest {
             // then
             assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
             verifyNoInteractions(projectRepository, mapper);
+        }
+    }
+
+    @Nested
+    @DisplayName("delete")
+    class Delete {
+
+        /**
+         * 생성자와 요청자가 같으면 프로젝트를 잠금 조회한 뒤 삭제한다.
+         */
+        @Test
+        void 생성자는_프로젝트를_삭제할_수_있다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            Project project = mock(Project.class);
+            when(project.getId()).thenReturn(1L);
+            when(projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, "WORK"))
+                    .thenReturn(Optional.of(project));
+
+            // when
+            projectService.delete(creatorId, "WORK", creatorId);
+
+            // then
+            verify(projectRepository).findByCreatorIdAndCodeForUpdate(creatorId, "WORK");
+            InOrder deletionOrder = inOrder(
+                    cardRepository,
+                    boardRepository,
+                    workspaceRepository,
+                    memberRepository,
+                    projectRepository
+            );
+            deletionOrder.verify(cardRepository).deleteAllByProjectId(1L);
+            deletionOrder.verify(boardRepository).deleteAllByProjectId(1L);
+            deletionOrder.verify(workspaceRepository).deleteAllByProjectId(1L);
+            deletionOrder.verify(memberRepository).deleteAllByProjectId(1L);
+            deletionOrder.verify(projectRepository).delete(project);
+        }
+
+        /**
+         * 생성자가 아닌 요청자는 프로젝트 조회와 삭제를 수행하지 않는다.
+         */
+        @Test
+        void 생성자가_아닌_사용자의_삭제를_거절한다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+
+            // when
+            CommonException exception = assertThrows(CommonException.class,
+                    () -> projectService.delete(creatorId, "WORK", requesterId));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+            verifyNoInteractions(
+                    projectRepository,
+                    cardRepository,
+                    boardRepository,
+                    workspaceRepository,
+                    memberRepository
+            );
+        }
+
+        /**
+         * 생성자와 코드가 일치하는 프로젝트가 없으면 삭제하지 않는다.
+         */
+        @Test
+        void 프로젝트가_없으면_삭제를_거절한다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            when(projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, "WORK"))
+                    .thenReturn(Optional.empty());
+
+            // when
+            ProjectException exception = assertThrows(ProjectException.class,
+                    () -> projectService.delete(creatorId, "WORK", creatorId));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND);
+            verify(projectRepository, never()).delete(any(Project.class));
+            verifyNoInteractions(cardRepository, boardRepository, workspaceRepository, memberRepository);
         }
     }
 
