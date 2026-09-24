@@ -17,7 +17,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles({"dev", "oauth"})
 @TestPropertySource(properties = {
         "GOOGLE_CLIENT_ID=test-google-client-id",
-        "GOOGLE_CLIENT_SECRET=test-google-client-secret"
+        "GOOGLE_CLIENT_SECRET=test-google-client-secret",
+        "spring.datasource.url=jdbc:h2:mem:google-oauth;DB_CLOSE_DELAY=-1",
+        "spring.datasource.username=sa",
+        "spring.datasource.password=",
+        "spring.datasource.driver-class-name=org.h2.Driver"
 })
 class GoogleOAuthConfigTest {
 

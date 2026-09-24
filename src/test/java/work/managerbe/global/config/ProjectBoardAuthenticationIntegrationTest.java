@@ -4,16 +4,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextImpl;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import work.managerbe.board.dto.response.BoardSliceResponse;
 import work.managerbe.board.service.BoardService;
 import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.service.ProjectService;
+import work.managerbe.global.security.JwtTokenService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,6 +34,9 @@ class ProjectBoardAuthenticationIntegrationTest {
 
     @Autowired
     MockMvc mockMvc;
+
+    @Autowired
+    JwtTokenService jwtTokenService;
 
     @MockitoBean
     ProjectService projectService;
@@ -75,7 +75,7 @@ class ProjectBoardAuthenticationIntegrationTest {
 
         // when & then
         mockMvc.perform(get("/{userId}/{code}", creatorId, PROJECT_CODE)
-                        .session(authenticatedSession(requesterId)))
+                        .header("Authorization", bearerToken(requesterId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.code").value(PROJECT_CODE));
@@ -113,7 +113,7 @@ class ProjectBoardAuthenticationIntegrationTest {
 
         // when & then
         mockMvc.perform(get("/{userId}/{code}/boards", creatorId, PROJECT_CODE)
-                        .session(authenticatedSession(requesterId)))
+                        .header("Authorization", bearerToken(requesterId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items").isEmpty())
                 .andExpect(jsonPath("$.page").value(0))
@@ -123,13 +123,7 @@ class ProjectBoardAuthenticationIntegrationTest {
         verify(boardService).getAll(creatorId, PROJECT_CODE, requesterId, 0, 20);
     }
 
-    private static MockHttpSession authenticatedSession(UUID requesterId) {
-        var authentication = new UsernamePasswordAuthenticationToken(requesterId, null, List.of());
-        var session = new MockHttpSession();
-        session.setAttribute(
-                HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
-                new SecurityContextImpl(authentication)
-        );
-        return session;
+    private String bearerToken(UUID requesterId) {
+        return "Bearer " + jwtTokenService.createAccessToken(requesterId);
     }
 }
