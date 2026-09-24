@@ -74,6 +74,44 @@ class GithubOAuth2UserServiceTest {
         assertThat(((InternalOAuth2User) result).getUserId()).isEqualTo(userId);
     }
 
+    @Test
+    void 공개_이름이_있으면_로그인명보다_우선한다() {
+        // given
+        when(delegate.loadUser(request)).thenReturn(oauth2User);
+        when(oauth2User.getAttribute("id")).thenReturn(12345);
+        when(oauth2User.getAttribute("login")).thenReturn("octocat");
+        when(oauth2User.getAttribute("name")).thenReturn("Octo Cat");
+        when(accountService.findOrCreate(new OAuthUserInfo(
+                OAuthProvider.GITHUB, "12345", "Octo Cat", null, null)))
+                .thenReturn(user);
+
+        // when
+        service.loadUser(request);
+
+        // then
+        verify(accountService).findOrCreate(new OAuthUserInfo(
+                OAuthProvider.GITHUB, "12345", "Octo Cat", null, null));
+    }
+
+    @Test
+    void 공개_이름이_공백이면_로그인명을_사용한다() {
+        // given
+        when(delegate.loadUser(request)).thenReturn(oauth2User);
+        when(oauth2User.getAttribute("id")).thenReturn(12345);
+        when(oauth2User.getAttribute("login")).thenReturn("octocat");
+        when(oauth2User.getAttribute("name")).thenReturn(" ");
+        when(accountService.findOrCreate(new OAuthUserInfo(
+                OAuthProvider.GITHUB, "12345", "octocat", null, null)))
+                .thenReturn(user);
+
+        // when
+        service.loadUser(request);
+
+        // then
+        verify(accountService).findOrCreate(new OAuthUserInfo(
+                OAuthProvider.GITHUB, "12345", "octocat", null, null));
+    }
+
     /**
      * GitHub ID가 없으면 계정을 저장하지 않고 인증 실패로 처리하는지 검증한다.
      */
@@ -113,6 +151,20 @@ class GithubOAuth2UserServiceTest {
         // given
         when(delegate.loadUser(request)).thenReturn(oauth2User);
         when(oauth2User.getAttribute("id")).thenReturn(12345);
+
+        // when & then
+        assertThatThrownBy(() -> service.loadUser(request))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .hasMessageContaining("GitHub 사용자 이름이 없습니다.");
+        verifyNoInteractions(accountService);
+    }
+
+    @Test
+    void 깃허브_로그인명이_공백이면_인증에_실패한다() {
+        // given
+        when(delegate.loadUser(request)).thenReturn(oauth2User);
+        when(oauth2User.getAttribute("id")).thenReturn(12345);
+        when(oauth2User.getAttribute("login")).thenReturn(" ");
 
         // when & then
         assertThatThrownBy(() -> service.loadUser(request))

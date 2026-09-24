@@ -115,4 +115,60 @@ class GoogleOidcUserServiceTest {
         verify(accountService).findOrCreate(new OAuthUserInfo(
                 OAuthProvider.GOOGLE, "google-subject", "google-subject", null, null));
     }
+
+    @Test
+    void 이름이_없으면_이메일을_이름으로_사용한다() {
+        // given
+        when(delegate.loadUser(request)).thenReturn(oidcUser);
+        when(oidcUser.getSubject()).thenReturn("google-subject");
+        when(oidcUser.getEmail()).thenReturn("user@example.com");
+        when(accountService.findOrCreate(new OAuthUserInfo(
+                OAuthProvider.GOOGLE, "google-subject", "user@example.com", "user@example.com", null)))
+                .thenReturn(user);
+
+        // when
+        service.loadUser(request);
+
+        // then
+        verify(accountService).findOrCreate(new OAuthUserInfo(
+                OAuthProvider.GOOGLE, "google-subject", "user@example.com", "user@example.com", null));
+    }
+
+    @Test
+    void 이름이_공백이면_이메일을_이름으로_사용한다() {
+        // given
+        when(delegate.loadUser(request)).thenReturn(oidcUser);
+        when(oidcUser.getSubject()).thenReturn("google-subject");
+        when(oidcUser.getFullName()).thenReturn(" ");
+        when(oidcUser.getEmail()).thenReturn("user@example.com");
+        when(accountService.findOrCreate(new OAuthUserInfo(
+                OAuthProvider.GOOGLE, "google-subject", "user@example.com", "user@example.com", null)))
+                .thenReturn(user);
+
+        // when
+        service.loadUser(request);
+
+        // then
+        verify(accountService).findOrCreate(new OAuthUserInfo(
+                OAuthProvider.GOOGLE, "google-subject", "user@example.com", "user@example.com", null));
+    }
+
+    @Test
+    void 이름과_이메일이_공백이면_subject를_이름으로_사용한다() {
+        // given
+        when(delegate.loadUser(request)).thenReturn(oidcUser);
+        when(oidcUser.getSubject()).thenReturn("google-subject");
+        when(oidcUser.getFullName()).thenReturn(" ");
+        when(oidcUser.getEmail()).thenReturn(" ");
+        when(accountService.findOrCreate(new OAuthUserInfo(
+                OAuthProvider.GOOGLE, "google-subject", "google-subject", " ", null)))
+                .thenReturn(user);
+
+        // when
+        service.loadUser(request);
+
+        // then
+        verify(accountService).findOrCreate(new OAuthUserInfo(
+                OAuthProvider.GOOGLE, "google-subject", "google-subject", " ", null));
+    }
 }

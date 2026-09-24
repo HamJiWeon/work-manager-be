@@ -89,6 +89,19 @@ class RefreshTokenServiceTest {
     }
 
     @Test
+    void 만료된_Refresh_Token은_회전할_수_없다() {
+        // given
+        RefreshToken expiredToken = RefreshToken.create(mock(User.class), "hash",
+                LocalDateTime.now(clock));
+        when(repository.findByTokenHash(any())).thenReturn(Optional.of(expiredToken));
+
+        // when & then
+        assertThatThrownBy(() -> service.rotate("expired"))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessageContaining("유효하지 않은 Refresh Token");
+    }
+
+    @Test
     void 로그아웃하면_Refresh_Token을_폐기한다() {
         // given
         RefreshToken storedToken = RefreshToken.create(mock(User.class), "hash",
@@ -100,5 +113,22 @@ class RefreshTokenServiceTest {
 
         // then
         assertThat(storedToken.getRevokedAt()).isEqualTo(LocalDateTime.now(clock));
+    }
+
+    @Test
+    void 로그아웃_토큰이_없거나_이미_만료되면_폐기를_건너뛴다() {
+        // given
+        RefreshToken expiredToken = RefreshToken.create(mock(User.class), "hash",
+                LocalDateTime.now(clock));
+        when(repository.findByTokenHash(any()))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(expiredToken));
+
+        // when
+        service.revoke("missing");
+        service.revoke("expired");
+
+        // then
+        assertThat(expiredToken.getRevokedAt()).isNull();
     }
 }
