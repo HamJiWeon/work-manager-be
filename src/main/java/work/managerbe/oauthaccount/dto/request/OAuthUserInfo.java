@@ -1,7 +1,9 @@
 package work.managerbe.oauthaccount.dto.request;
 
+import work.managerbe.oauthaccount.domain.OAuthProvider;
+
 public record OAuthUserInfo(
-        String provider,
+        OAuthProvider provider,
         String providerUserId,
         String name,
         String email,

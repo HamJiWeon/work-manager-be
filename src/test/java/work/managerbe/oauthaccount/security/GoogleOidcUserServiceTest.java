@@ -11,10 +11,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
-import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import work.managerbe.oauthaccount.dto.request.OAuthUserInfo;
+import work.managerbe.oauthaccount.domain.OAuthProvider;
 import work.managerbe.oauthaccount.service.OauthAccountService;
 import work.managerbe.user.domain.User;
 
@@ -39,9 +39,6 @@ class GoogleOidcUserServiceTest {
     private OidcUserRequest request;
 
     @Mock
-    private ClientRegistration registration;
-
-    @Mock
     private OidcUser oidcUser;
 
     @Mock
@@ -58,14 +55,12 @@ class GoogleOidcUserServiceTest {
         // given
         UUID userId = UUID.randomUUID();
         when(delegate.loadUser(request)).thenReturn(oidcUser);
-        when(request.getClientRegistration()).thenReturn(registration);
-        when(registration.getRegistrationId()).thenReturn("google");
         when(oidcUser.getSubject()).thenReturn("google-subject");
         when(oidcUser.getFullName()).thenReturn("홍길동");
         when(oidcUser.getEmail()).thenReturn("user@example.com");
         when(oidcUser.getPicture()).thenReturn("image-url");
         when(accountService.findOrCreate(new OAuthUserInfo(
-                "google", "google-subject", "홍길동", "user@example.com", "image-url")))
+                OAuthProvider.GOOGLE, "google-subject", "홍길동", "user@example.com", "image-url")))
                 .thenReturn(user);
         when(user.getId()).thenReturn(userId);
 
@@ -109,10 +104,8 @@ class GoogleOidcUserServiceTest {
         // given
         when(delegate.loadUser(request)).thenReturn(oidcUser);
         when(oidcUser.getSubject()).thenReturn("google-subject");
-        when(request.getClientRegistration()).thenReturn(registration);
-        when(registration.getRegistrationId()).thenReturn("google");
         when(accountService.findOrCreate(new OAuthUserInfo(
-                "google", "google-subject", "google-subject", null, null)))
+                OAuthProvider.GOOGLE, "google-subject", "google-subject", null, null)))
                 .thenReturn(user);
 
         // when
@@ -120,6 +113,6 @@ class GoogleOidcUserServiceTest {
 
         // then
         verify(accountService).findOrCreate(new OAuthUserInfo(
-                "google", "google-subject", "google-subject", null, null));
+                OAuthProvider.GOOGLE, "google-subject", "google-subject", null, null));
     }
 }

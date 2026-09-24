@@ -23,19 +23,20 @@ public class OauthAccount extends CreateEntity {
     private User user;
 
     @Column(nullable = false)
-    private String provider;
+    @Enumerated(EnumType.STRING)
+    private OAuthProvider provider;
 
     @Column(nullable = false)
     private String providerUserId;
 
     @Builder
-    private OauthAccount(User user, String provider, String providerUserId) {
+    private OauthAccount(User user, OAuthProvider provider, String providerUserId) {
         this.user = user;
         this.provider = provider;
         this.providerUserId = providerUserId;
     }
 
-    public static OauthAccount create(User user, String provider, String providerUserId) {
+    public static OauthAccount create(User user, OAuthProvider provider, String providerUserId) {
         return OauthAccount.builder()
                 .user(user)
                 .provider(provider)

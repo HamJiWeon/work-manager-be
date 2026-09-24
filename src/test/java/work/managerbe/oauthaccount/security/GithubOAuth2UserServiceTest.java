@@ -6,12 +6,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import work.managerbe.oauthaccount.dto.request.OAuthUserInfo;
+import work.managerbe.oauthaccount.domain.OAuthProvider;
 import work.managerbe.oauthaccount.service.OauthAccountService;
 import work.managerbe.user.domain.User;
 
@@ -36,9 +36,6 @@ class GithubOAuth2UserServiceTest {
     private OAuth2UserRequest request;
 
     @Mock
-    private ClientRegistration registration;
-
-    @Mock
     private OAuth2User oauth2User;
 
     @Mock
@@ -55,15 +52,13 @@ class GithubOAuth2UserServiceTest {
         // given
         UUID userId = UUID.randomUUID();
         when(delegate.loadUser(request)).thenReturn(oauth2User);
-        when(request.getClientRegistration()).thenReturn(registration);
-        when(registration.getRegistrationId()).thenReturn("github");
         when(oauth2User.getAttribute("id")).thenReturn(12345);
         when(oauth2User.getAttribute("login")).thenReturn("octocat");
         when(oauth2User.getAttribute("name")).thenReturn(null);
         when(oauth2User.getAttribute("email")).thenReturn(null);
         when(oauth2User.getAttribute("avatar_url")).thenReturn("avatar-url");
         when(accountService.findOrCreate(new OAuthUserInfo(
-                "github", "12345", "octocat", null, "avatar-url")))
+                OAuthProvider.GITHUB, "12345", "octocat", null, "avatar-url")))
                 .thenReturn(user);
         when(user.getId()).thenReturn(userId);
 

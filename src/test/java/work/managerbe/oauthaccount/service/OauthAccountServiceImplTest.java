@@ -7,6 +7,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import work.managerbe.oauthaccount.domain.OauthAccount;
+import work.managerbe.oauthaccount.domain.OAuthProvider;
 import work.managerbe.oauthaccount.dto.request.OAuthUserInfo;
 import work.managerbe.oauthaccount.repository.OauthAccountRepository;
 import work.managerbe.user.domain.User;
@@ -37,8 +38,8 @@ class OauthAccountServiceImplTest {
     @Test
     void 처음_로그인한_계정은_사용자와_OAuth_계정을_생성한다() {
         // given
-        OAuthUserInfo info = new OAuthUserInfo("google", "provider-id", "홍길동", "user@example.com", "image-url");
-        when(oauthAccountRepository.findByProviderAndProviderUserId("google", "provider-id"))
+        OAuthUserInfo info = new OAuthUserInfo(OAuthProvider.GOOGLE, "provider-id", "홍길동", "user@example.com", "image-url");
+        when(oauthAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "provider-id"))
                 .thenReturn(Optional.empty());
         when(userRepository.save(org.mockito.ArgumentMatchers.any(User.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -53,7 +54,7 @@ class OauthAccountServiceImplTest {
         assertThat(result.getEmail()).isEqualTo("user@example.com");
         assertThat(result.getProfileImgUrl()).isEqualTo("image-url");
         assertThat(accountCaptor.getValue().getUser()).isSameAs(result);
-        assertThat(accountCaptor.getValue().getProvider()).isEqualTo("google");
+        assertThat(accountCaptor.getValue().getProvider()).isEqualTo(OAuthProvider.GOOGLE);
         assertThat(accountCaptor.getValue().getProviderUserId()).isEqualTo("provider-id");
     }
 
@@ -63,10 +64,10 @@ class OauthAccountServiceImplTest {
     @Test
     void 기존_계정은_연결된_사용자를_반환한다() {
         // given
-        OAuthUserInfo info = new OAuthUserInfo("google", "provider-id", "홍길동", null, null);
+        OAuthUserInfo info = new OAuthUserInfo(OAuthProvider.GOOGLE, "provider-id", "홍길동", null, null);
         User user = User.create("기존 사용자", null, null);
-        OauthAccount account = OauthAccount.create(user, "google", "provider-id");
-        when(oauthAccountRepository.findByProviderAndProviderUserId("google", "provider-id"))
+        OauthAccount account = OauthAccount.create(user, OAuthProvider.GOOGLE, "provider-id");
+        when(oauthAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "provider-id"))
                 .thenReturn(Optional.of(account));
 
         // when

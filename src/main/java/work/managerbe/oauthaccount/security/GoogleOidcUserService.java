@@ -10,6 +10,7 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 import work.managerbe.oauthaccount.dto.request.OAuthUserInfo;
+import work.managerbe.oauthaccount.domain.OAuthProvider;
 import work.managerbe.oauthaccount.service.OauthAccountService;
 import work.managerbe.user.domain.User;
 
@@ -28,7 +29,7 @@ public class GoogleOidcUserService implements OAuth2UserService<OidcUserRequest,
     @Override
     public OidcUser loadUser(OidcUserRequest request) throws OAuth2AuthenticationException {
         OidcUser oidcUser = oidcUserService.loadUser(request);
-        OAuthUserInfo userInfo = validateUserInfo(request, oidcUser);
+        OAuthUserInfo userInfo = validateUserInfo(oidcUser);
         User user = oauthAccountService.findOrCreate(userInfo);
 
         return new InternalOidcUser(user.getId(), oidcUser);
@@ -37,7 +38,7 @@ public class GoogleOidcUserService implements OAuth2UserService<OidcUserRequest,
     /**
      * Google OIDC 응답의 subject를 확인하고 내부 계정 정보로 변환한다.
      */
-    private OAuthUserInfo validateUserInfo(OidcUserRequest request, OidcUser oidcUser) {
+    private OAuthUserInfo validateUserInfo(OidcUser oidcUser) {
         String subject = oidcUser.getSubject();
         if (subject == null || subject.isBlank()) {
             throw new OAuth2AuthenticationException(
@@ -55,7 +56,7 @@ public class GoogleOidcUserService implements OAuth2UserService<OidcUserRequest,
         }
 
         return new OAuthUserInfo(
-                request.getClientRegistration().getRegistrationId(),
+                OAuthProvider.GOOGLE,
                 subject,
                 name,
                 oidcUser.getEmail(),

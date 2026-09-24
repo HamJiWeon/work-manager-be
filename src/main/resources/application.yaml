@@ -7,10 +7,21 @@ spring:
   flyway:
     locations: classpath:db/migration
     validate-migration-naming: true
-server:
-  servlet:
-    session:
-      cookie:
-        http-only: true
-        secure: true
-        same-site: lax
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope:
+              - openid
+              - profile
+              - email
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    access-token-expiration: 15m
+    refresh-token-expiration: 14d
+    secure-cookie: true
+    login-success-url: ${LOGIN_SUCCESS_URL:/}
