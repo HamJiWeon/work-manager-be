@@ -30,7 +30,7 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers-postgresql'
 
     // DB
-    runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'com.h2database:h2:2.5.250'
     runtimeOnly 'org.postgresql:postgresql'
 
     // Flyway

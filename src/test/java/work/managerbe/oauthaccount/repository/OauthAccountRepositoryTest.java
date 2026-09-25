@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import work.managerbe.global.config.JpaAuditingConfig;
 import work.managerbe.global.config.QuerydslConfig;
 import work.managerbe.oauthaccount.domain.OAuthProvider;
@@ -12,6 +13,7 @@ import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
 @Import({JpaAuditingConfig.class, QuerydslConfig.class})
@@ -22,6 +24,9 @@ class OauthAccountRepositoryTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     /**
      * 제공자와 제공자 사용자 ID가 모두 일치하는 OAuth 계정만 조회되는지 검증한다.
@@ -55,5 +60,18 @@ class OauthAccountRepositoryTest {
                 .isEmpty();
         assertThat(oauthAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "other-user-id"))
                 .isEmpty();
+    }
+
+    @Test
+    void 지원하지_않는_OAuth_제공자는_저장할_수_없다() {
+        // given
+        User user = userRepository.save(User.create("홍길동", null, null));
+
+        // when & then
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                        INSERT INTO oauth_accounts (user_id, provider, provider_user_id, created_at)
+                        VALUES (?, 'UNSUPPORTED', 'provider-user-id', CURRENT_TIMESTAMP)
+                        """, user.getId()))
+                .hasMessageContaining("CK_OAUTH_ACCOUNTS_PROVIDER");
     }
 }
