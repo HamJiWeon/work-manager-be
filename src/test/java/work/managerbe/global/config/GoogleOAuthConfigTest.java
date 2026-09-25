@@ -18,6 +18,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = {
         "GOOGLE_CLIENT_ID=test-google-client-id",
         "GOOGLE_CLIENT_SECRET=test-google-client-secret",
+        "GITHUB_CLIENT_ID=test-github-client-id",
+        "GITHUB_CLIENT_SECRET=test-github-client-secret",
         "spring.datasource.url=jdbc:h2:mem:google-oauth;DB_CLOSE_DELAY=-1",
         "spring.datasource.username=sa",
         "spring.datasource.password=",

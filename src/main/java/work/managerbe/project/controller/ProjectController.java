@@ -10,6 +10,8 @@ import work.managerbe.project.dto.request.ProjectUpdateRequest;
 import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.service.ProjectService;
+import work.managerbe.global.exception.CommonException;
+import work.managerbe.global.exception.ErrorCode;
 
 import java.util.UUID;
 
@@ -25,7 +27,11 @@ public class ProjectController {
     @PostMapping("/projects")
     public ResponseEntity<ProjectResponse> create(
             @PathVariable("userId") UUID userId,
+            @AuthenticationPrincipal UUID requesterId,
             @RequestBody ProjectCreateRequest request) {
+        if (!userId.equals(requesterId)) {
+            throw CommonException.of(ErrorCode.FORBIDDEN);
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(projectService.create(userId, request));
     }
 

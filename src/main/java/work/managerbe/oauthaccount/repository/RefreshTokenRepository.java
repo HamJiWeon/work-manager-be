@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import work.managerbe.oauthaccount.domain.RefreshToken;
 
 import java.util.Optional;
@@ -23,5 +24,5 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
             where token.expiresAt <= :cutoff
                or token.revokedAt <= :cutoff
             """)
-    int deleteExpiredOrRevokedBefore(LocalDateTime cutoff);
+    int deleteExpiredOrRevokedBefore(@Param("cutoff") LocalDateTime cutoff);
 }
