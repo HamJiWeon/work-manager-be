@@ -1,0 +1,84 @@
+package work.managerbe.oauthaccount.service;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
+import work.managerbe.oauthaccount.repository.RefreshTokenRepository;
+import work.managerbe.user.domain.User;
+import work.managerbe.user.repository.UserRepository;
+
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest(properties = {
+        "spring.security.oauth2.client.registration.google.client-id=test-client",
+        "spring.security.oauth2.client.registration.google.client-secret=test-secret",
+        "security.jwt.secret=manager-be-test-secret-at-least-32-bytes"
+})
+@Testcontainers
+class RefreshTokenConcurrencyIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
+
+    private final RefreshTokenService refreshTokenService;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final UserRepository userRepository;
+
+    @Autowired
+    RefreshTokenConcurrencyIntegrationTest(
+            RefreshTokenService refreshTokenService,
+            RefreshTokenRepository refreshTokenRepository,
+            UserRepository userRepository
+    ) {
+        this.refreshTokenService = refreshTokenService;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.userRepository = userRepository;
+    }
+
+    @Test
+    void 동일한_Refresh_Token을_동시에_회전하면_하나만_성공한다() throws Exception {
+        // given
+        User user = userRepository.save(User.create("홍길동", "user@example.com", null));
+        String refreshToken = refreshTokenService.issue(user).refreshToken();
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        Callable<Boolean> rotate = () -> {
+            ready.countDown();
+            start.await();
+            try {
+                refreshTokenService.rotate(refreshToken);
+                return true;
+            } catch (BadCredentialsException exception) {
+                return false;
+            }
+        };
+
+        // when
+        List<Boolean> results;
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<Boolean> first = executor.submit(rotate);
+            Future<Boolean> second = executor.submit(rotate);
+            ready.await();
+            start.countDown();
+            results = List.of(first.get(), second.get());
+        }
+
+        // then
+        assertThat(results).containsExactlyInAnyOrder(true, false);
+        assertThat(refreshTokenRepository.count()).isEqualTo(2);
+    }
+}
