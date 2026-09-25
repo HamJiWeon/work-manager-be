@@ -1,48 +1,43 @@
 package work.managerbe.oauthaccount.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.oauthaccount.domain.OauthAccount;
 import work.managerbe.oauthaccount.dto.request.OAuthUserInfo;
 import work.managerbe.oauthaccount.repository.OauthAccountRepository;
 import work.managerbe.user.domain.User;
-import work.managerbe.user.repository.UserRepository;
+
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(readOnly = true)
 public class OauthAccountServiceImpl implements OauthAccountService {
 
     private final OauthAccountRepository oauthAccountRepository;
-    private final UserRepository userRepository;
+    private final OauthAccountCreator oauthAccountCreator;
 
     @Override
     public User findOrCreate(OAuthUserInfo userInfo) {
-        return oauthAccountRepository
-                .findByProviderAndProviderUserId(
-                        userInfo.provider(),
-                        userInfo.providerUserId())
-                .map(OauthAccount::getUser)
-                .orElseGet(() -> createUserWithOauthAccount(userInfo));
+        return findUser(userInfo).orElseGet(() -> createOrFindUser(userInfo));
     }
 
     /**
-     * OAuth 제공자 정보를 사용자로 저장한 뒤 해당 사용자와 OAuth 계정을 연결한다.
+     * 동시 최초 로그인으로 unique 충돌이 발생하면 먼저 생성된 계정을 재조회한다.
      */
-    private User createUserWithOauthAccount(OAuthUserInfo userInfo) {
-        User user = userRepository.save(User.create(
-                userInfo.name(),
-                userInfo.email(),
-                userInfo.profileImageUrl()
-        ));
+    private User createOrFindUser(OAuthUserInfo userInfo) {
+        try {
+            return oauthAccountCreator.create(userInfo);
+        } catch (DataIntegrityViolationException exception) {
+            return findUser(userInfo).orElseThrow(() -> exception);
+        }
+    }
 
-        oauthAccountRepository.save(OauthAccount.create(
-                user,
-                userInfo.provider(),
-                userInfo.providerUserId()
-        ));
-
-        return user;
+    private Optional<User> findUser(OAuthUserInfo userInfo) {
+        return oauthAccountRepository.findByProviderAndProviderUserId(
+                        userInfo.provider(), userInfo.providerUserId())
+                .map(OauthAccount::getUser);
     }
 }
