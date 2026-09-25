@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AuthCookieServiceTest {
 
     private final AuthCookieService service = new AuthCookieService(new JwtProperties(
-            "a".repeat(32), Duration.ofMinutes(15), Duration.ofDays(14), true, "/"));
+            "a".repeat(32), Duration.ofMinutes(15), Duration.ofDays(14), Duration.ofDays(7), true, "/"));
 
     @Test
     void Refresh_Token만_HttpOnly_Secure_쿠키로_발급한다() {

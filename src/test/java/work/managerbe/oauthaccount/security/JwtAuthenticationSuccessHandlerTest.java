@@ -29,7 +29,7 @@ class JwtAuthenticationSuccessHandlerTest {
     private final RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
     private final AuthCookieService authCookieService = mock(AuthCookieService.class);
     private final JwtProperties properties = new JwtProperties("a".repeat(32), Duration.ofMinutes(15),
-            Duration.ofDays(14), true, "/login/success");
+            Duration.ofDays(14), Duration.ofDays(7), true, "/login/success");
     private final JwtAuthenticationSuccessHandler handler = new JwtAuthenticationSuccessHandler(
             userRepository, refreshTokenService, authCookieService, properties);
 
