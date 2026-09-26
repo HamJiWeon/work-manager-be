@@ -10,7 +10,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import work.managerbe.global.security.AuthCookieService;
-import work.managerbe.global.security.JwtProperties;
 import work.managerbe.oauthaccount.service.RefreshTokenService;
 import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
@@ -29,7 +28,7 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
     private final UserRepository userRepository;
     private final RefreshTokenService refreshTokenService;
     private final AuthCookieService authCookieService;
-    private final JwtProperties properties;
+    private final OAuthRedirectProperties redirectProperties;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, @NonNull HttpServletResponse response,
@@ -43,12 +42,21 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
         authCookieService.addRefreshToken(response, tokenPair.refreshToken());
 
         HttpSession session = request.getSession(false);
+        String client = resolveClient(session);
 
         if (session != null) {
             session.invalidate();
         }
 
-        response.sendRedirect(properties.loginSuccessUrl());
+        response.sendRedirect(redirectProperties.successUrl(client));
+    }
+
+    private String resolveClient(HttpSession session) {
+        if (session == null) {
+            return redirectProperties.defaultClient();
+        }
+        Object client = session.getAttribute(OAuthLoginClientFilter.OAUTH_CLIENT_SESSION_ATTRIBUTE);
+        return client instanceof String value ? value : redirectProperties.defaultClient();
     }
 
     private UUID extractUserId(Object principal) {

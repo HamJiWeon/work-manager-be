@@ -13,7 +13,6 @@ public record JwtProperties(
         Duration accessTokenExpiration,
         Duration refreshTokenExpiration,
         Duration refreshTokenRetention,
-        boolean secureCookie,
-        String loginSuccessUrl
+        boolean secureCookie
 ) {
 }
