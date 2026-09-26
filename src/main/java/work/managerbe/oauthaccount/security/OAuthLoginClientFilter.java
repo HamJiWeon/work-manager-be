@@ -7,7 +7,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -15,7 +14,6 @@ import java.io.IOException;
 /**
  * OAuth 로그인 시작 요청의 클라이언트를 허용 목록으로 검증하고 임시 세션에 보관한다.
  */
-@Component
 public class OAuthLoginClientFilter extends OncePerRequestFilter {
 
     public static final String OAUTH_CLIENT_SESSION_ATTRIBUTE = "oauth_login_client";

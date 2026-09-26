@@ -32,7 +32,7 @@ class RefreshTokenServiceTest {
         repository = mock(RefreshTokenRepository.class);
         jwtTokenService = mock(JwtTokenService.class);
         JwtProperties properties = new JwtProperties("a".repeat(32), Duration.ofMinutes(15),
-                Duration.ofDays(14), Duration.ofDays(7), true, "/");
+                Duration.ofDays(14), Duration.ofDays(7), true);
         service = new RefreshTokenService(repository, jwtTokenService, properties,
                 new SecureRandom(new byte[]{1, 2, 3}), clock);
     }

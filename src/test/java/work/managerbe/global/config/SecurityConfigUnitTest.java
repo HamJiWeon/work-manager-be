@@ -68,6 +68,6 @@ class SecurityConfigUnitTest {
     }
 
     private JwtProperties properties(String secret) {
-        return new JwtProperties(secret, Duration.ofMinutes(15), Duration.ofDays(14), Duration.ofDays(7), true, "/");
+        return new JwtProperties(secret, Duration.ofMinutes(15), Duration.ofDays(14), Duration.ofDays(7), true);
     }
 }

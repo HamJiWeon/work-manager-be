@@ -8,14 +8,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import work.managerbe.global.security.AuthCookieService;
-import work.managerbe.global.security.JwtProperties;
 import work.managerbe.global.security.TokenPair;
 import work.managerbe.oauthaccount.service.RefreshTokenService;
 import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
 
-import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,10 +27,10 @@ class JwtAuthenticationSuccessHandlerTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
     private final AuthCookieService authCookieService = mock(AuthCookieService.class);
-    private final JwtProperties properties = new JwtProperties("a".repeat(32), Duration.ofMinutes(15),
-            Duration.ofDays(14), Duration.ofDays(7), true, "/login/success");
+    private final OAuthRedirectProperties redirectProperties = new OAuthRedirectProperties(
+            "web", Map.of("web", "/login/success", "mobile", "manager://oauth/callback"));
     private final JwtAuthenticationSuccessHandler handler = new JwtAuthenticationSuccessHandler(
-            userRepository, refreshTokenService, authCookieService, properties);
+            userRepository, refreshTokenService, authCookieService, redirectProperties);
 
     /**
      * OAuth 로그인 성공 시 토큰 쿠키를 발급하고 임시 세션을 제거한 뒤 프론트로 이동하는지 검증한다.
@@ -79,6 +78,27 @@ class JwtAuthenticationSuccessHandlerTest {
         verify(authCookieService).addRefreshToken(response, "refresh");
         assertThat(request.getSession(false)).isNull();
         assertThat(response.getRedirectedUrl()).isEqualTo("/login/success");
+    }
+
+    @Test
+    void 모바일에서_시작한_OAuth_로그인은_모바일_콜백으로_이동한다() throws Exception {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = mock(User.class);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(refreshTokenService.issue(user)).thenReturn(new TokenPair("access", "refresh"));
+        var request = new MockHttpServletRequest();
+        request.getSession().setAttribute(OAuthLoginClientFilter.OAUTH_CLIENT_SESSION_ATTRIBUTE, "mobile");
+        var response = new MockHttpServletResponse();
+        var authentication = new UsernamePasswordAuthenticationToken(
+                new InternalOAuth2User(userId, mock(OAuth2User.class)), null, List.of());
+
+        // when
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        // then
+        assertThat(response.getRedirectedUrl()).isEqualTo("manager://oauth/callback");
+        assertThat(request.getSession(false)).isNull();
     }
 
     @Test

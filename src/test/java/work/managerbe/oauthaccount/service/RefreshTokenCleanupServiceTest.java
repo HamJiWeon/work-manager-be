@@ -23,7 +23,7 @@ class RefreshTokenCleanupServiceTest {
         RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
         Clock clock = Clock.fixed(Instant.parse("2026-09-25T03:00:00Z"), ZoneOffset.UTC);
         JwtProperties properties = new JwtProperties(
-                "a".repeat(32), Duration.ofMinutes(15), Duration.ofDays(14), Duration.ofDays(7), true, "/");
+                "a".repeat(32), Duration.ofMinutes(15), Duration.ofDays(14), Duration.ofDays(7), true);
         LocalDateTime cutoff = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC).minusDays(7);
         when(repository.deleteExpiredOrRevokedBefore(cutoff)).thenReturn(3);
         RefreshTokenCleanupService service = new RefreshTokenCleanupService(repository, properties, clock);

@@ -120,6 +120,11 @@ public class SecurityConfig {
     }
 
     @Bean
+    public OAuthLoginClientFilter oauthLoginClientFilter(OAuthRedirectProperties properties) {
+        return new OAuthLoginClientFilter(properties);
+    }
+
+    @Bean
     public OidcUserService oidcUserService() {
         return new OidcUserService();
     }

@@ -30,7 +30,7 @@ class AuthControllerTest {
         refreshTokenService = mock(RefreshTokenService.class);
         authCookieService = mock(AuthCookieService.class);
         JwtProperties properties = new JwtProperties(
-                "a".repeat(32), Duration.ofMinutes(15), Duration.ofDays(14), Duration.ofDays(7), true, "/");
+                "a".repeat(32), Duration.ofMinutes(15), Duration.ofDays(14), Duration.ofDays(7), true);
         controller = new AuthController(refreshTokenService, authCookieService, properties);
     }
 
