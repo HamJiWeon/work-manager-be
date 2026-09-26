@@ -1,6 +1,7 @@
 package work.managerbe.global.config;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import work.managerbe.global.security.JwtProperties;
 
@@ -40,6 +41,30 @@ class SecurityConfigUnitTest {
         // then
         assertThat(authentication).isNotNull();
         assertThat(authentication.getPrincipal()).isEqualTo(userId);
+    }
+
+    @Test
+    void JWT_subject가_UUID_형식이_아니면_인증에_실패한다() {
+        // given
+        Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(60),
+                Map.of("alg", "HS256"), Map.of("sub", "invalid-subject"));
+
+        // when & then
+        assertThatThrownBy(() -> config.jwtAuthenticationConverter().convert(jwt))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .hasMessageContaining("JWT subject가 올바른 UUID가 아닙니다.");
+    }
+
+    @Test
+    void JWT_subject가_없으면_인증에_실패한다() {
+        // given
+        Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(60),
+                Map.of("alg", "HS256"), Map.of("iss", "manager-be"));
+
+        // when & then
+        assertThatThrownBy(() -> config.jwtAuthenticationConverter().convert(jwt))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .hasMessageContaining("JWT subject가 올바른 UUID가 아닙니다.");
     }
 
     private JwtProperties properties(String secret) {

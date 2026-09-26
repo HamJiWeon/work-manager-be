@@ -14,7 +14,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.server.resource.BearerTokenErrors;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
@@ -98,8 +100,17 @@ public class SecurityConfig {
 
     @Bean
     public Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter() {
-        return jwt -> new UsernamePasswordAuthenticationToken(
-                UUID.fromString(jwt.getSubject()), jwt.getTokenValue(), List.of());
+        return jwt -> {
+            try {
+                return new UsernamePasswordAuthenticationToken(
+                        UUID.fromString(jwt.getSubject()), jwt.getTokenValue(), List.of());
+            } catch (IllegalArgumentException | NullPointerException exception) {
+                throw new OAuth2AuthenticationException(
+                        BearerTokenErrors.invalidToken("JWT subject가 올바른 UUID가 아닙니다."),
+                        "JWT subject가 올바른 UUID가 아닙니다.",
+                        exception);
+            }
+        };
     }
 
     @Bean
