@@ -64,7 +64,7 @@ public class RefreshTokenService {
     }
 
     /**
-     * 회전 전 토큰으로 로그아웃하더라도 같은 세션에서 파생된 토큰을 모두 폐기한다.
+     * 로그아웃과 회전이 경합하면 로그아웃 완료 시점에 같은 세션의 활성 토큰을 모두 폐기해 세션을 끝낸다.
      */
     public void revoke(String refreshToken) {
         LocalDateTime now = LocalDateTime.now(clock);
