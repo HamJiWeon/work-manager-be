@@ -42,21 +42,12 @@ public class JwtAuthenticationSuccessHandler implements AuthenticationSuccessHan
         authCookieService.addRefreshToken(response, tokenPair.refreshToken());
 
         HttpSession session = request.getSession(false);
-        String client = resolveClient(session);
 
         if (session != null) {
             session.invalidate();
         }
 
-        response.sendRedirect(redirectProperties.successUrl(client));
-    }
-
-    private String resolveClient(HttpSession session) {
-        if (session == null) {
-            return redirectProperties.defaultClient();
-        }
-        Object client = session.getAttribute(OAuthLoginClientFilter.OAUTH_CLIENT_SESSION_ATTRIBUTE);
-        return client instanceof String value ? value : redirectProperties.defaultClient();
+        response.sendRedirect(redirectProperties.loginSuccessUrl());
     }
 
     private UUID extractUserId(Object principal) {

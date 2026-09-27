@@ -14,7 +14,6 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
-import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.server.resource.BearerTokenErrors;
@@ -31,7 +30,6 @@ import work.managerbe.global.security.JwtProperties;
 import work.managerbe.oauthaccount.security.GithubOAuth2UserService;
 import work.managerbe.oauthaccount.security.GoogleOidcUserService;
 import work.managerbe.oauthaccount.security.JwtAuthenticationSuccessHandler;
-import work.managerbe.oauthaccount.security.OAuthLoginClientFilter;
 import work.managerbe.oauthaccount.security.OAuthRedirectProperties;
 
 import javax.crypto.spec.SecretKeySpec;
@@ -59,7 +57,6 @@ public class SecurityConfig {
             GoogleOidcUserService googleOidcUserService,
             GithubOAuth2UserService githubOAuth2UserService,
             JwtAuthenticationSuccessHandler authenticationSuccessHandler,
-            OAuthLoginClientFilter oauthLoginClientFilter,
             Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter
     ) throws Exception {
         var authRequestMatcher = PathPatternRequestMatcher.withDefaults();
@@ -90,8 +87,6 @@ public class SecurityConfig {
                 .logout(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable);
-
-        http.addFilterBefore(oauthLoginClientFilter, OAuth2AuthorizationRequestRedirectFilter.class);
 
         if (clientRegistrations.getIfAvailable() != null) {
             http.oauth2Login(oauth -> oauth
@@ -131,11 +126,6 @@ public class SecurityConfig {
                         exception);
             }
         };
-    }
-
-    @Bean
-    public OAuthLoginClientFilter oauthLoginClientFilter(OAuthRedirectProperties properties) {
-        return new OAuthLoginClientFilter(properties);
     }
 
     @Bean

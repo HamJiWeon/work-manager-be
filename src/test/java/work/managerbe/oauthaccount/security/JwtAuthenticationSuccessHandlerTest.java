@@ -14,7 +14,6 @@ import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,8 +26,7 @@ class JwtAuthenticationSuccessHandlerTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
     private final AuthCookieService authCookieService = mock(AuthCookieService.class);
-    private final OAuthRedirectProperties redirectProperties = new OAuthRedirectProperties(
-            "web", Map.of("web", "/login/success", "mobile", "manager://oauth/callback"));
+    private final OAuthRedirectProperties redirectProperties = new OAuthRedirectProperties("/login/success");
     private final JwtAuthenticationSuccessHandler handler = new JwtAuthenticationSuccessHandler(
             userRepository, refreshTokenService, authCookieService, redirectProperties);
 
@@ -78,27 +76,6 @@ class JwtAuthenticationSuccessHandlerTest {
         verify(authCookieService).addRefreshToken(response, "refresh");
         assertThat(request.getSession(false)).isNull();
         assertThat(response.getRedirectedUrl()).isEqualTo("/login/success");
-    }
-
-    @Test
-    void 모바일에서_시작한_OAuth_로그인은_모바일_콜백으로_이동한다() throws Exception {
-        // given
-        UUID userId = UUID.randomUUID();
-        User user = mock(User.class);
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-        when(refreshTokenService.issue(user)).thenReturn(new TokenPair("access", "refresh"));
-        var request = new MockHttpServletRequest();
-        request.getSession().setAttribute(OAuthLoginClientFilter.OAUTH_CLIENT_SESSION_ATTRIBUTE, "mobile");
-        var response = new MockHttpServletResponse();
-        var authentication = new UsernamePasswordAuthenticationToken(
-                new InternalOAuth2User(userId, mock(OAuth2User.class)), null, List.of());
-
-        // when
-        handler.onAuthenticationSuccess(request, response, authentication);
-
-        // then
-        assertThat(response.getRedirectedUrl()).isEqualTo("manager://oauth/callback");
-        assertThat(request.getSession(false)).isNull();
     }
 
     @Test
