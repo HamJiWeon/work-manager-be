@@ -15,5 +15,3 @@ security:
     refresh-token-retention: 7d
     refresh-token-cleanup-cron: "0 0 3 * * *"
     secure-cookie: true
-  oauth:
-    login-success-url: ${LOGIN_SUCCESS_URL}

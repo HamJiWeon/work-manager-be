@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "GOOGLE_CLIENT_SECRET=test-google-client-secret",
         "GITHUB_CLIENT_ID=test-github-client-id",
         "GITHUB_CLIENT_SECRET=test-github-client-secret",
+        "LOGIN_SUCCESS_URL=http://localhost:3000/oauth/callback",
         "spring.datasource.url=jdbc:h2:mem:google-oauth;DB_CLOSE_DELAY=-1",
         "spring.datasource.username=sa",
         "spring.datasource.password=",

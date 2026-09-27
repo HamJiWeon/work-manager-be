@@ -8,7 +8,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 실제 main 메서드로 애플리케이션을 시작해 컨텍스트와 애플리케이션 빈의 로딩을 검증한다.
+ * OAuth 프로필과 OAuth 환경변수 없이 실제 main 메서드로 기본 애플리케이션이 기동하는지 검증한다.
  */
 @SpringBootTest(useMainMethod = SpringBootTest.UseMainMethod.ALWAYS)
 class ManagerBeApplicationTests {

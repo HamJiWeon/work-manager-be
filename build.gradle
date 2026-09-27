@@ -73,7 +73,6 @@ dependencies {
 tasks.named('test', Test) {
     useJUnitPlatform()
     systemProperty 'JWT_SECRET', 'manager-be-test-secret-at-least-32-bytes'
-    systemProperty 'LOGIN_SUCCESS_URL', 'http://localhost:3000/oauth/callback'
     finalizedBy tasks.named('jacocoTestReport')
 }
 

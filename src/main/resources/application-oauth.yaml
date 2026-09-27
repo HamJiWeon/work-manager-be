@@ -16,3 +16,6 @@ spring:
             scope:
               - read:user
               - user:email
+security:
+  oauth:
+    login-success-url: ${LOGIN_SUCCESS_URL}
