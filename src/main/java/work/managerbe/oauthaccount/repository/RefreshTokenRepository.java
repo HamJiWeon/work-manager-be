@@ -18,6 +18,21 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
+    /**
+     * 동일 로그인 세션에서 회전된 모든 활성 Refresh Token을 한 번에 폐기한다.
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update RefreshToken token
+            set token.revokedAt = :revokedAt
+            where token.sessionId = :sessionId
+              and token.revokedAt is null
+            """)
+    int revokeAllBySessionId(
+            @Param("sessionId") UUID sessionId,
+            @Param("revokedAt") LocalDateTime revokedAt
+    );
+
     @Modifying
     @Query("""
             delete from RefreshToken token

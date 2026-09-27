@@ -34,9 +34,10 @@ class RefreshTokenRepositoryTest {
         // when & then
         assertThatThrownBy(() -> jdbcTemplate.update("""
                         INSERT INTO refresh_tokens
-                            (id, user_id, token_hash, expires_at, created_at)
-                        VALUES (?, ?, ?, ?, ?)
-                        """, UUID.randomUUID(), user.getId(), "short-hash", now.plusDays(1), now))
+                            (id, user_id, session_id, token_hash, expires_at, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """, UUID.randomUUID(), user.getId(), UUID.randomUUID(),
+                        "short-hash", now.plusDays(1), now))
                 .hasMessageContaining("CK_REFRESH_TOKENS_TOKEN_HASH_LENGTH");
     }
 }

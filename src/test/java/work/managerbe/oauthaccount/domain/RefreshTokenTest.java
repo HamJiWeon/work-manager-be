@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import work.managerbe.user.domain.User;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -14,7 +15,7 @@ class RefreshTokenTest {
         // given
         LocalDateTime now = LocalDateTime.parse("2026-09-24T12:00:00");
         RefreshToken token = RefreshToken.create(
-                User.create("사용자", null, null), "hash", now.plusDays(1));
+                User.create("사용자", null, null), UUID.randomUUID(), "hash", now.plusDays(1));
 
         // when & then
         assertThat(token.isUsableAt(now)).isTrue();
@@ -28,7 +29,7 @@ class RefreshTokenTest {
         // given
         LocalDateTime now = LocalDateTime.parse("2026-09-24T12:00:00");
         RefreshToken token = RefreshToken.create(
-                User.create("사용자", null, null), "hash", now.minusSeconds(1));
+                User.create("사용자", null, null), UUID.randomUUID(), "hash", now.minusSeconds(1));
 
         // when & then
         assertThat(token.isUsableAt(now)).isFalse();

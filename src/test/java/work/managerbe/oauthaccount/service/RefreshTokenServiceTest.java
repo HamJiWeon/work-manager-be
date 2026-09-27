@@ -64,7 +64,7 @@ class RefreshTokenServiceTest {
         User user = mock(User.class);
         when(user.getId()).thenReturn(UUID.randomUUID());
         when(jwtTokenService.createAccessToken(any())).thenReturn("new-access");
-        RefreshToken storedToken = RefreshToken.create(user, "stored-hash",
+        RefreshToken storedToken = RefreshToken.create(user, UUID.randomUUID(), "stored-hash",
                 LocalDateTime.now(clock).plusDays(1));
         when(repository.findByTokenHash(any())).thenReturn(Optional.of(storedToken));
 
@@ -91,7 +91,7 @@ class RefreshTokenServiceTest {
     @Test
     void 만료된_Refresh_Token은_회전할_수_없다() {
         // given
-        RefreshToken expiredToken = RefreshToken.create(mock(User.class), "hash",
+        RefreshToken expiredToken = RefreshToken.create(mock(User.class), UUID.randomUUID(), "hash",
                 LocalDateTime.now(clock));
         when(repository.findByTokenHash(any())).thenReturn(Optional.of(expiredToken));
 
@@ -104,7 +104,8 @@ class RefreshTokenServiceTest {
     @Test
     void 로그아웃하면_Refresh_Token을_폐기한다() {
         // given
-        RefreshToken storedToken = RefreshToken.create(mock(User.class), "hash",
+        UUID sessionId = UUID.randomUUID();
+        RefreshToken storedToken = RefreshToken.create(mock(User.class), sessionId, "hash",
                 LocalDateTime.now(clock).plusDays(1));
         when(repository.findByTokenHash(any())).thenReturn(Optional.of(storedToken));
 
@@ -112,23 +113,18 @@ class RefreshTokenServiceTest {
         service.revoke("refresh");
 
         // then
-        assertThat(storedToken.getRevokedAt()).isEqualTo(LocalDateTime.now(clock));
+        verify(repository).revokeAllBySessionId(sessionId, LocalDateTime.now(clock));
     }
 
     @Test
-    void 로그아웃_토큰이_없거나_이미_만료되면_폐기를_건너뛴다() {
+    void 로그아웃_토큰이_없으면_폐기를_건너뛴다() {
         // given
-        RefreshToken expiredToken = RefreshToken.create(mock(User.class), "hash",
-                LocalDateTime.now(clock));
-        when(repository.findByTokenHash(any()))
-                .thenReturn(Optional.empty())
-                .thenReturn(Optional.of(expiredToken));
+        when(repository.findByTokenHash(any())).thenReturn(Optional.empty());
 
         // when
         service.revoke("missing");
-        service.revoke("expired");
 
         // then
-        assertThat(expiredToken.getRevokedAt()).isNull();
+        verify(repository, never()).revokeAllBySessionId(any(), any());
     }
 }

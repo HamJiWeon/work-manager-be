@@ -1,5 +1,6 @@
 package work.managerbe.oauthaccount.service;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,6 +21,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(properties = {
         "spring.security.oauth2.client.registration.google.client-id=test-client",
@@ -46,6 +48,12 @@ class RefreshTokenConcurrencyIntegrationTest {
         this.refreshTokenService = refreshTokenService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.userRepository = userRepository;
+    }
+
+    @AfterEach
+    void tearDown() {
+        refreshTokenRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
     @Test
@@ -80,5 +88,23 @@ class RefreshTokenConcurrencyIntegrationTest {
         // then
         assertThat(results).containsExactlyInAnyOrder(true, false);
         assertThat(refreshTokenRepository.count()).isEqualTo(2);
+    }
+
+    /**
+     * 비관적 잠금이 만드는 회전 후 로그아웃 순서에서 새 토큰까지 폐기되는지 검증한다.
+     */
+    @Test
+    void 회전보다_늦게_처리된_로그아웃은_새_Refresh_Token도_폐기한다() {
+        // given
+        User user = userRepository.save(User.create("홍길동", "logout@example.com", null));
+        String oldRefreshToken = refreshTokenService.issue(user).refreshToken();
+        String newRefreshToken = refreshTokenService.rotate(oldRefreshToken).refreshToken();
+
+        // when
+        refreshTokenService.revoke(oldRefreshToken);
+
+        // then
+        assertThatThrownBy(() -> refreshTokenService.rotate(newRefreshToken))
+                .isInstanceOf(BadCredentialsException.class);
     }
 }

@@ -24,6 +24,9 @@ public class RefreshToken extends CreateEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Column(nullable = false, updatable = false)
+    private UUID sessionId;
+
     @Column(nullable = false, unique = true, length = 64)
     private String tokenHash;
 
@@ -32,14 +35,15 @@ public class RefreshToken extends CreateEntity {
 
     private LocalDateTime revokedAt;
 
-    private RefreshToken(User user, String tokenHash, LocalDateTime expiresAt) {
+    private RefreshToken(User user, UUID sessionId, String tokenHash, LocalDateTime expiresAt) {
         this.user = user;
+        this.sessionId = sessionId;
         this.tokenHash = tokenHash;
         this.expiresAt = expiresAt;
     }
 
-    public static RefreshToken create(User user, String tokenHash, LocalDateTime expiresAt) {
-        return new RefreshToken(user, tokenHash, expiresAt);
+    public static RefreshToken create(User user, UUID sessionId, String tokenHash, LocalDateTime expiresAt) {
+        return new RefreshToken(user, sessionId, tokenHash, expiresAt);
     }
 
     public boolean isUsableAt(LocalDateTime now) {

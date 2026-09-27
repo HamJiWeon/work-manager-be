@@ -18,6 +18,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.UUID;
 
 /**
  * Refresh Token 원문은 한 번만 발급하고 해시를 저장해 재발급 시 기존 토큰을 회전한다.
@@ -36,27 +37,39 @@ public class RefreshTokenService {
     private final SecureRandom secureRandom;
     private final Clock clock;
 
+    /**
+     * 로그인마다 독립된 세션 식별자를 생성해 최초 Refresh Token을 발급한다.
+     */
     public TokenPair issue(User user) {
+        return issue(user, UUID.randomUUID());
+    }
+
+    private TokenPair issue(User user, UUID sessionId) {
         String refreshToken = generateRefreshToken();
         LocalDateTime expiresAt = LocalDateTime.now(clock).plus(properties.refreshTokenExpiration());
-        refreshTokenRepository.save(RefreshToken.create(user, hash(refreshToken), expiresAt));
+        refreshTokenRepository.save(RefreshToken.create(user, sessionId, hash(refreshToken), expiresAt));
         return new TokenPair(jwtTokenService.createAccessToken(user.getId()), refreshToken);
     }
 
+    /**
+     * 기존 토큰을 폐기하고 같은 세션 식별자를 이어받은 새 토큰으로 회전한다.
+     */
     public TokenPair rotate(String refreshToken) {
         LocalDateTime now = LocalDateTime.now(clock);
         RefreshToken storedToken = refreshTokenRepository.findByTokenHash(hash(refreshToken))
                 .filter(token -> token.isUsableAt(now))
                 .orElseThrow(() -> new BadCredentialsException("유효하지 않은 Refresh Token입니다."));
         storedToken.revoke(now);
-        return issue(storedToken.getUser());
+        return issue(storedToken.getUser(), storedToken.getSessionId());
     }
 
+    /**
+     * 회전 전 토큰으로 로그아웃하더라도 같은 세션에서 파생된 토큰을 모두 폐기한다.
+     */
     public void revoke(String refreshToken) {
         LocalDateTime now = LocalDateTime.now(clock);
         refreshTokenRepository.findByTokenHash(hash(refreshToken))
-                .filter(token -> token.isUsableAt(now))
-                .ifPresent(token -> token.revoke(now));
+                .ifPresent(token -> refreshTokenRepository.revokeAllBySessionId(token.getSessionId(), now));
     }
 
     private String generateRefreshToken() {
