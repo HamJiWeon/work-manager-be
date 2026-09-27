@@ -4,11 +4,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
 import work.managerbe.global.security.AuthCookieService;
 import work.managerbe.global.security.JwtProperties;
 import work.managerbe.global.security.TokenPair;
 import work.managerbe.oauthaccount.dto.response.AccessTokenResponse;
+import work.managerbe.oauthaccount.dto.response.CsrfTokenResponse;
 import work.managerbe.oauthaccount.service.RefreshTokenService;
 
 @RestController
@@ -19,6 +21,11 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final AuthCookieService authCookieService;
     private final JwtProperties jwtProperties;
+
+    @GetMapping("/csrf")
+    public CsrfTokenResponse csrf(CsrfToken csrfToken) {
+        return CsrfTokenResponse.from(csrfToken);
+    }
 
     @PostMapping("/refresh")
     public AccessTokenResponse refresh(

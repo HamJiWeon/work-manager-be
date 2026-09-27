@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextImpl;
@@ -22,6 +23,8 @@ import java.time.Instant;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -59,14 +62,61 @@ class SecurityConfigTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    /**
-     * Authorization 헤더 방식에서는 CSRF 토큰 없이 쓰기 요청을 허용하는지 검증한다.
-     */
     @Test
-    void 로그아웃은_CSRF_토큰을_요구하지_않는다() throws Exception {
+    void 로그아웃은_CSRF_토큰이_없으면_403을_반환한다() throws Exception {
         // given / when & then
         mockMvc.perform(post("/auth/logout"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void CSRF_토큰을_헤더로_전달하면_로그아웃을_허용한다() throws Exception {
+        // given
+        MvcResult csrfResult = mockMvc.perform(get("/auth/csrf"))
+                .andExpect(status().isOk())
+                .andExpect(cookie().exists("XSRF-TOKEN"))
+                .andExpect(jsonPath("$.headerName").value("X-XSRF-TOKEN"))
+                .andReturn();
+        String csrfToken = csrfResult.getResponse().getCookie("XSRF-TOKEN").getValue();
+
+        // when & then
+        mockMvc.perform(post("/auth/logout")
+                        .cookie(csrfResult.getResponse().getCookie("XSRF-TOKEN"))
+                        .header("X-XSRF-TOKEN", csrfToken))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 토큰_갱신은_CSRF_토큰이_없으면_403을_반환한다() throws Exception {
+        // given / when & then
+        mockMvc.perform(post("/auth/refresh"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 토큰_갱신에_CSRF_토큰을_전달하면_인증_로직까지_진행한다() throws Exception {
+        // given
+        MvcResult csrfResult = mockMvc.perform(get("/auth/csrf"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String csrfToken = csrfResult.getResponse().getCookie("XSRF-TOKEN").getValue();
+
+        // when & then
+        mockMvc.perform(post("/auth/refresh")
+                        .cookie(csrfResult.getResponse().getCookie("XSRF-TOKEN"))
+                        .header("X-XSRF-TOKEN", csrfToken))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void Bearer_API는_CSRF_토큰_없이_POST_요청을_허용한다() throws Exception {
+        // given
+        String accessToken = jwtTokenService.createAccessToken(UUID.randomUUID());
+
+        // when & then
+        mockMvc.perform(post("/not-found")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isNotFound());
     }
 
     /**

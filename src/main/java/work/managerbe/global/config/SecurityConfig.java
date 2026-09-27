@@ -22,7 +22,11 @@ import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.context.NullSecurityContextRepository;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.savedrequest.NullRequestCache;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import work.managerbe.global.security.JwtProperties;
 import work.managerbe.oauthaccount.security.GithubOAuth2UserService;
 import work.managerbe.oauthaccount.security.GoogleOidcUserService;
@@ -38,6 +42,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 
+import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
 @Configuration
@@ -57,6 +62,12 @@ public class SecurityConfig {
             OAuthLoginClientFilter oauthLoginClientFilter,
             Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter
     ) throws Exception {
+        var authRequestMatcher = PathPatternRequestMatcher.withDefaults();
+        var csrfRequestMatcher = new OrRequestMatcher(
+                authRequestMatcher.matcher(POST, "/auth/refresh"),
+                authRequestMatcher.matcher(POST, "/auth/logout"));
+        var csrfTokenRequestHandler = new CsrfTokenRequestAttributeHandler();
+
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/oauth2/authorization/**", "/login/oauth2/code/**", "/auth/**")
@@ -70,7 +81,10 @@ public class SecurityConfig {
                 .securityContext(context -> context
                         .securityContextRepository(new NullSecurityContextRepository()))
                 .requestCache(cache -> cache.requestCache(new NullRequestCache()))
-                .csrf(AbstractHttpConfigurer::disable)
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRequestHandler(csrfTokenRequestHandler)
+                        .requireCsrfProtectionMatcher(csrfRequestMatcher))
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .logout(AbstractHttpConfigurer::disable)
