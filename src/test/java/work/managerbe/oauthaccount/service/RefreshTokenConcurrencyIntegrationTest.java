@@ -109,13 +109,14 @@ class RefreshTokenConcurrencyIntegrationTest {
     }
 
     /**
-     * 회전과 로그아웃이 동시에 시작되면 로그아웃이 같은 세션의 남은 토큰까지 모두 폐기하는지 검증한다.
+     * 회전과 로그아웃이 동시에 시작되어도 로그아웃 완료 후 해당 세션의 토큰이 남지 않는지 검증한다.
      */
     @Test
-    void Refresh_Token_회전과_로그아웃이_경합하면_로그아웃이_세션을_폐기한다() throws Exception {
+    void 이전_Refresh_Token_로그아웃과_현재_토큰_회전이_경합해도_세션은_폐기된다() throws Exception {
         // given
         User user = userRepository.save(User.create("홍길동", "race@example.com", null));
         String oldRefreshToken = refreshTokenService.issue(user).refreshToken();
+        String currentRefreshToken = refreshTokenService.rotate(oldRefreshToken).refreshToken();
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
 
@@ -123,7 +124,7 @@ class RefreshTokenConcurrencyIntegrationTest {
             ready.countDown();
             start.await();
             try {
-                return refreshTokenService.rotate(oldRefreshToken).refreshToken();
+                return refreshTokenService.rotate(currentRefreshToken).refreshToken();
             } catch (BadCredentialsException exception) {
                 return null;
             }
@@ -148,6 +149,8 @@ class RefreshTokenConcurrencyIntegrationTest {
 
         // then
         assertThatThrownBy(() -> refreshTokenService.rotate(oldRefreshToken))
+                .isInstanceOf(BadCredentialsException.class);
+        assertThatThrownBy(() -> refreshTokenService.rotate(currentRefreshToken))
                 .isInstanceOf(BadCredentialsException.class);
         if (rotatedRefreshToken != null) {
             assertThatThrownBy(() -> refreshTokenService.rotate(rotatedRefreshToken))

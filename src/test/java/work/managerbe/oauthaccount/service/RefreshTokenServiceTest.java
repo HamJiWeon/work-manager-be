@@ -105,26 +105,26 @@ class RefreshTokenServiceTest {
     void 로그아웃하면_Refresh_Token을_폐기한다() {
         // given
         UUID sessionId = UUID.randomUUID();
-        RefreshToken storedToken = RefreshToken.create(mock(User.class), sessionId, "hash",
-                LocalDateTime.now(clock).plusDays(1));
-        when(repository.findByTokenHash(any())).thenReturn(Optional.of(storedToken));
+        when(repository.findSessionIdByTokenHash(any())).thenReturn(Optional.of(sessionId));
 
         // when
         service.revoke("refresh");
 
         // then
+        verify(repository).lockAllBySessionId(sessionId);
         verify(repository).revokeAllBySessionId(sessionId, LocalDateTime.now(clock));
     }
 
     @Test
     void 로그아웃_토큰이_없으면_폐기를_건너뛴다() {
         // given
-        when(repository.findByTokenHash(any())).thenReturn(Optional.empty());
+        when(repository.findSessionIdByTokenHash(any())).thenReturn(Optional.empty());
 
         // when
         service.revoke("missing");
 
         // then
+        verify(repository, never()).lockAllBySessionId(any());
         verify(repository, never()).revokeAllBySessionId(any(), any());
     }
 }

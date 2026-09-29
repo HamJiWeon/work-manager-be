@@ -68,8 +68,11 @@ public class RefreshTokenService {
      */
     public void revoke(String refreshToken) {
         LocalDateTime now = LocalDateTime.now(clock);
-        refreshTokenRepository.findByTokenHash(hash(refreshToken))
-                .ifPresent(token -> refreshTokenRepository.revokeAllBySessionId(token.getSessionId(), now));
+        refreshTokenRepository.findSessionIdByTokenHash(hash(refreshToken))
+                .ifPresent(sessionId -> {
+                    refreshTokenRepository.lockAllBySessionId(sessionId);
+                    refreshTokenRepository.revokeAllBySessionId(sessionId, now);
+                });
     }
 
     private String generateRefreshToken() {
