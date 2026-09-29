@@ -9,6 +9,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.dto.request.ProjectUpdateRequest;
+import work.managerbe.board.domain.Board;
+import work.managerbe.member.domain.Member;
+import work.managerbe.workspace.domain.Workspace;
 import work.managerbe.user.domain.User;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,5 +82,59 @@ class ProjectServiceIntegrationTest {
         assertThat(response.updatedAt()).isAfter(PREVIOUS_UPDATED_AT);
         assertThat(updatedProject.getUpdatedAt())
                 .isCloseTo(response.updatedAt(), within(1, ChronoUnit.MICROS));
+    }
+
+    /**
+     * 프로젝트 삭제 시 DB cascade가 카드와 모든 프로젝트 소속 데이터를 제거하는지 검증한다.
+     */
+    @Test
+    void 프로젝트를_삭제하면_관련_카드와_보드도_함께_삭제된다() {
+        // given
+        User creator = User.create("생성자", "delete-project@example.com", null);
+        entityManager.persist(creator);
+        Project project = Project.create(creator, "DELETE", "삭제할 프로젝트", null);
+        entityManager.persist(project);
+        Member member = Member.create(creator, project, "OWNER");
+        Board board = project.addBoard("진행 중");
+        Workspace workspace = Workspace.create(project, "워크스페이스", "내용");
+        entityManager.persist(member);
+        entityManager.persist(board);
+        entityManager.persist(workspace);
+        entityManager.flush();
+
+        entityManager.createNativeQuery("""
+                        INSERT INTO cards (user_id, member_id, project_id, board_id,
+                            title, content, created_at, updated_at)
+                        VALUES (:userId, :memberId, :projectId, :boardId,
+                            '카드', '내용', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """)
+                .setParameter("userId", creator.getId())
+                .setParameter("memberId", member.getId())
+                .setParameter("projectId", project.getId())
+                .setParameter("boardId", board.getId())
+                .executeUpdate();
+
+        Long projectId = project.getId();
+        entityManager.clear();
+
+        // when
+        projectService.delete(creator.getId(), "DELETE", creator.getId());
+        entityManager.flush();
+        entityManager.clear();
+
+        // then
+        assertThat(countByProject("cards", projectId)).isZero();
+        assertThat(countByProject("boards", projectId)).isZero();
+        assertThat(countByProject("workspaces", projectId)).isZero();
+        assertThat(countByProject("members", projectId)).isZero();
+        assertThat(entityManager.find(Project.class, projectId)).isNull();
+        assertThat(entityManager.find(User.class, creator.getId())).isNotNull();
+    }
+
+    private long countByProject(String tableName, Long projectId) {
+        return ((Number) entityManager.createNativeQuery(
+                        "select count(*) from " + tableName + " where project_id = :projectId")
+                .setParameter("projectId", projectId)
+                .getSingleResult()).longValue();
     }
 }

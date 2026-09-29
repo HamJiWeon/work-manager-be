@@ -32,6 +32,8 @@ import java.util.UUID;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -376,6 +378,79 @@ class ProjectControllerTest {
             // when / then
             mockMvc.perform(patch("/{userId}/{code}", creatorId, "WORK")
                             .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+            verifyNoInteractions(projectService);
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE /{userId}/{code}")
+    class DeleteProject {
+
+        /**
+         * 인증된 생성자의 삭제 요청을 서비스에 전달하고 본문 없는 204 응답을 반환한다.
+         */
+        @Test
+        void 프로젝트_삭제시_204를_반환한다() throws Exception {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            authenticate(creatorId);
+
+            // when / then
+            mockMvc.perform(delete("/{userId}/{code}", creatorId, "WORK"))
+                    .andExpect(status().isNoContent());
+
+            verify(projectService).delete(creatorId, "WORK", creatorId);
+        }
+
+        /**
+         * 인증 사용자가 생성자와 다르면 서비스의 권한 예외를 403 응답으로 변환한다.
+         */
+        @Test
+        void 생성자가_아닌_사용자의_삭제시_403을_반환한다() throws Exception {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+            authenticate(requesterId);
+            doThrow(CommonException.of(ErrorCode.FORBIDDEN))
+                    .when(projectService).delete(creatorId, "WORK", requesterId);
+
+            // when / then
+            mockMvc.perform(delete("/{userId}/{code}", creatorId, "WORK"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+
+            verify(projectService).delete(creatorId, "WORK", requesterId);
+        }
+
+        /**
+         * 삭제할 프로젝트가 없으면 서비스의 프로젝트 예외를 404 응답으로 변환한다.
+         */
+        @Test
+        void 존재하지_않는_프로젝트_삭제시_404를_반환한다() throws Exception {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            authenticate(creatorId);
+            doThrow(ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND))
+                    .when(projectService).delete(creatorId, "MISSING", creatorId);
+
+            // when / then
+            mockMvc.perform(delete("/{userId}/{code}", creatorId, "MISSING"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("PROJECT_NOT_FOUND"));
+
+            verify(projectService).delete(creatorId, "MISSING", creatorId);
+        }
+
+        /**
+         * 경로 사용자 ID가 UUID 형식이 아니면 서비스 호출 전에 400 응답을 반환한다.
+         */
+        @Test
+        void 사용자_ID_형식이_잘못되면_400을_반환한다() throws Exception {
+            // when / then
+            mockMvc.perform(delete("/{userId}/{code}", "invalid-user-id", "WORK"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 

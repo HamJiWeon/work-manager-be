@@ -29,7 +29,7 @@ public class BoardController {
     /**
      * 생성자와 코드로 프로젝트를 식별하고 인증된 요청자의 보드 생성 결과를 반환한다.
      */
-    @PostMapping()
+    @PostMapping
     public ResponseEntity<BoardResponse> create(
             @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
             @AuthenticationPrincipal UUID requesterId,
@@ -42,7 +42,7 @@ public class BoardController {
     /**
      * 생성자와 코드, 인증된 요청자를 전달하고 조회 크기를 1부터 100까지 제한한다.
      */
-    @GetMapping()
+    @GetMapping
     public ResponseEntity<BoardSliceResponse> getAll(
             @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
             @AuthenticationPrincipal UUID requesterId,
@@ -54,7 +54,7 @@ public class BoardController {
     /**
      * 요청 배열의 순서대로 프로젝트 보드를 재배치하고 전달된 이름을 함께 수정한다.
      */
-    @PatchMapping()
+    @PatchMapping
     public ResponseEntity<List<BoardResponse>> update(
             @PathVariable("userId") UUID creatorId,
             @PathVariable("code") String code,

@@ -135,6 +135,20 @@ public class ProjectServiceImpl implements ProjectService{
         return mapper.toResponse(project);
     }
 
+    @Override
+    @Transactional
+    public void delete(UUID creatorId, String code, UUID requesterId) {
+        userIdValidation(creatorId);
+        userIdValidation(requesterId);
+        projectCodeValidation(code);
+        projectCreatorPermissionValidation(creatorId, requesterId);
+
+        Project project = projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+
+        projectRepository.delete(project);
+    }
+
     private static void projectCreatorPermissionValidation(UUID creatorId, UUID requesterId) {
         if (!creatorId.equals(requesterId)) {
             throw CommonException.of(ErrorCode.FORBIDDEN);

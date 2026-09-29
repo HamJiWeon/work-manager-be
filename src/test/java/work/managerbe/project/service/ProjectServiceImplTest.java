@@ -838,4 +838,65 @@ class ProjectServiceImplTest {
         }
     }
 
+    @Nested
+    @DisplayName("delete")
+    class Delete {
+
+        /**
+         * 생성자와 요청자가 같으면 프로젝트를 잠금 조회한 뒤 삭제한다.
+         */
+        @Test
+        void 생성자는_프로젝트를_삭제할_수_있다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            Project project = mock(Project.class);
+            when(projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, "WORK"))
+                    .thenReturn(Optional.of(project));
+
+            // when
+            projectService.delete(creatorId, "WORK", creatorId);
+
+            // then
+            verify(projectRepository).findByCreatorIdAndCodeForUpdate(creatorId, "WORK");
+            verify(projectRepository).delete(project);
+        }
+
+        /**
+         * 생성자가 아닌 요청자는 프로젝트 조회와 삭제를 수행하지 않는다.
+         */
+        @Test
+        void 생성자가_아닌_사용자의_삭제를_거절한다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+
+            // when
+            CommonException exception = assertThrows(CommonException.class,
+                    () -> projectService.delete(creatorId, "WORK", requesterId));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+            verifyNoInteractions(projectRepository);
+        }
+
+        /**
+         * 생성자와 코드가 일치하는 프로젝트가 없으면 삭제하지 않는다.
+         */
+        @Test
+        void 프로젝트가_없으면_삭제를_거절한다() {
+            // given
+            UUID creatorId = UUID.randomUUID();
+            when(projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, "WORK"))
+                    .thenReturn(Optional.empty());
+
+            // when
+            ProjectException exception = assertThrows(ProjectException.class,
+                    () -> projectService.delete(creatorId, "WORK", creatorId));
+
+            // then
+            assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND);
+            verify(projectRepository, never()).delete(any(Project.class));
+        }
+    }
+
 }

@@ -60,4 +60,14 @@ public class ProjectController {
     ) {
         return ResponseEntity.ok(projectService.update(creatorId, code, requesterId, request));
     }
+
+    @DeleteMapping(PRJ_CODE)
+    public ResponseEntity<Void> delete(
+            @PathVariable("userId") UUID creatorId,
+            @PathVariable("code") String code,
+            @AuthenticationPrincipal UUID requesterId
+    ) {
+        projectService.delete(creatorId, code, requesterId);
+        return ResponseEntity.noContent().build();
+    }
 }
