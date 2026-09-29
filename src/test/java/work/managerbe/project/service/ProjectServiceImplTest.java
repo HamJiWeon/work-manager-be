@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
@@ -26,8 +25,6 @@ import work.managerbe.project.dto.response.ProjectResponse;
 import work.managerbe.project.dto.response.ProjectSliceResponse;
 import work.managerbe.project.mapper.ProjectMapper;
 import work.managerbe.project.repository.ProjectRepository;
-import work.managerbe.board.repository.BoardRepository;
-import work.managerbe.card.repository.CardRepository;
 
 import java.sql.SQLException;
 import org.hibernate.exception.ConstraintViolationException;
@@ -41,7 +38,6 @@ import work.managerbe.member.domain.Member;
 import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
-import work.managerbe.workspace.repository.WorkspaceRepository;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,15 +59,6 @@ class ProjectServiceImplTest {
 
     @Mock
     private MemberRepository memberRepository;
-
-    @Mock
-    private BoardRepository boardRepository;
-
-    @Mock
-    private CardRepository cardRepository;
-
-    @Mock
-    private WorkspaceRepository workspaceRepository;
 
     @InjectMocks
     private ProjectServiceImpl projectService;
@@ -863,7 +850,6 @@ class ProjectServiceImplTest {
             // given
             UUID creatorId = UUID.randomUUID();
             Project project = mock(Project.class);
-            when(project.getId()).thenReturn(1L);
             when(projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, "WORK"))
                     .thenReturn(Optional.of(project));
 
@@ -872,18 +858,7 @@ class ProjectServiceImplTest {
 
             // then
             verify(projectRepository).findByCreatorIdAndCodeForUpdate(creatorId, "WORK");
-            InOrder deletionOrder = inOrder(
-                    cardRepository,
-                    boardRepository,
-                    workspaceRepository,
-                    memberRepository,
-                    projectRepository
-            );
-            deletionOrder.verify(cardRepository).deleteAllByProjectId(1L);
-            deletionOrder.verify(boardRepository).deleteAllByProjectId(1L);
-            deletionOrder.verify(workspaceRepository).deleteAllByProjectId(1L);
-            deletionOrder.verify(memberRepository).deleteAllByProjectId(1L);
-            deletionOrder.verify(projectRepository).delete(project);
+            verify(projectRepository).delete(project);
         }
 
         /**
@@ -901,13 +876,7 @@ class ProjectServiceImplTest {
 
             // then
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-            verifyNoInteractions(
-                    projectRepository,
-                    cardRepository,
-                    boardRepository,
-                    workspaceRepository,
-                    memberRepository
-            );
+            verifyNoInteractions(projectRepository);
         }
 
         /**
@@ -927,7 +896,6 @@ class ProjectServiceImplTest {
             // then
             assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND);
             verify(projectRepository, never()).delete(any(Project.class));
-            verifyNoInteractions(cardRepository, boardRepository, workspaceRepository, memberRepository);
         }
     }
 

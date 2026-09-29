@@ -2,7 +2,6 @@ package work.managerbe.member.repository;
 
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import work.managerbe.member.domain.Member;
@@ -21,8 +20,4 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
             """)
     boolean existsByUserIdAndProjectId(
             @Param("userId") UUID userId, @Param("projectId") Long projectId);
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("delete from Member m where m.project.id = :projectId")
-    void deleteAllByProjectId(@Param("projectId") Long projectId);
 }

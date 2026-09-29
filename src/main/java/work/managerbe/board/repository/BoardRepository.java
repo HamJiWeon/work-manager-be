@@ -1,7 +1,6 @@
 package work.managerbe.board.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Slice;
@@ -15,8 +14,4 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
      */
     @Query("select b from Board b where b.project.id = :projectId order by b.sortOrder asc, b.id asc")
     Slice<Board> findAllByProjectId(@Param("projectId") Long projectId, Pageable pageable);
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("delete from Board b where b.project.id = :projectId")
-    void deleteAllByProjectId(@Param("projectId") Long projectId);
 }
