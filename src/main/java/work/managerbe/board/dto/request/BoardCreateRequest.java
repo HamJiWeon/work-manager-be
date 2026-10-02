@@ -1,4 +1,4 @@
-package work.managerbe.board.dto;
+package work.managerbe.board.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 

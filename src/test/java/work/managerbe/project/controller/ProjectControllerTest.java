@@ -65,6 +65,7 @@ class ProjectControllerTest {
         void 정상_요청시_201_반환() throws Exception {
             // given
             UUID userId = UUID.randomUUID();
+            authenticate(userId);
             ProjectCreateRequest request =
                     new ProjectCreateRequest("WORK", "업무 관리", "프로젝트 설명");
 
@@ -95,6 +96,7 @@ class ProjectControllerTest {
         void 이름_누락시_400_반환() throws Exception {
             // given
             UUID userId = UUID.randomUUID();
+            authenticate(userId);
             ProjectCreateRequest request =
                     new ProjectCreateRequest("WORK", null, "프로젝트 설명");
 
@@ -116,6 +118,7 @@ class ProjectControllerTest {
         void 본문_누락시_400_반환() throws Exception {
             // given
             UUID userId = UUID.randomUUID();
+            authenticate(userId);
 
             // when & then
             mockMvc.perform(post("/{userId}/projects", userId)
@@ -131,6 +134,7 @@ class ProjectControllerTest {
         void JSON_형식_오류시_400_반환() throws Exception {
             // given
             UUID userId = UUID.randomUUID();
+            authenticate(userId);
 
             // when & then
             mockMvc.perform(post("/{userId}/projects", userId)
@@ -139,6 +143,24 @@ class ProjectControllerTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
+            verifyNoInteractions(projectService);
+        }
+
+        @Test
+        @DisplayName("경로의 사용자와 인증 사용자가 다르면 403을 반환한다.")
+        void 다른_사용자의_경로로_프로젝트를_생성할_수_없다() throws Exception {
+            // given
+            UUID pathUserId = UUID.randomUUID();
+            authenticate(UUID.randomUUID());
+            ProjectCreateRequest request =
+                    new ProjectCreateRequest("WORK", "업무 관리", "프로젝트 설명");
+
+            // when & then
+            mockMvc.perform(post("/{userId}/projects", pathUserId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("FORBIDDEN"));
             verifyNoInteractions(projectService);
         }
     }

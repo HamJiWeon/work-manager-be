@@ -30,7 +30,7 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers-postgresql'
 
     // DB
-    runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'com.h2database:h2:2.5.250'
     runtimeOnly 'org.postgresql:postgresql'
 
     // Flyway
@@ -39,6 +39,8 @@ dependencies {
 
     // Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 
     // Validation
     implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -70,6 +72,7 @@ dependencies {
  */
 tasks.named('test', Test) {
     useJUnitPlatform()
+    systemProperty 'JWT_SECRET', 'manager-be-test-secret-at-least-32-bytes'
     finalizedBy tasks.named('jacocoTestReport')
 }
 

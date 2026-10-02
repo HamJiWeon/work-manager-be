@@ -7,6 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import work.managerbe.oauthaccount.domain.OauthAccount;
+import work.managerbe.oauthaccount.domain.OAuthProvider;
 import work.managerbe.oauthaccount.dto.response.OauthAccountResponse;
 import work.managerbe.user.domain.User;
 
@@ -45,7 +46,7 @@ class OauthAccountMapperTest {
             when(oauthAccount.getId()).thenReturn(1L);
             when(oauthAccount.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(userId);
-            when(oauthAccount.getProvider()).thenReturn("google");
+            when(oauthAccount.getProvider()).thenReturn(OAuthProvider.GOOGLE);
             when(oauthAccount.getProviderUserId()).thenReturn("google-user-123");
             when(oauthAccount.getCreatedAt()).thenReturn(createdAt);
 
@@ -55,7 +56,7 @@ class OauthAccountMapperTest {
             // then
             assertThat(response.id()).isEqualTo(1L);
             assertThat(response.userId()).isEqualTo(userId);
-            assertThat(response.provider()).isEqualTo("google");
+            assertThat(response.provider()).isEqualTo(OAuthProvider.GOOGLE);
             assertThat(response.providerUserId()).isEqualTo("google-user-123");
             assertThat(response.createdAt()).isEqualTo(createdAt);
         }
@@ -66,7 +67,7 @@ class OauthAccountMapperTest {
             // given
             User newUser = User.create("홍길동", "user@example.com", null);
             OauthAccount newAccount =
-                    OauthAccount.create(newUser, "google", "google-user-123");
+                    OauthAccount.create(newUser, OAuthProvider.GOOGLE, "google-user-123");
 
             // when
             OauthAccountResponse response = mapper.toResponse(newAccount);
@@ -74,7 +75,7 @@ class OauthAccountMapperTest {
             // then
             assertThat(response.id()).isNull();
             assertThat(response.userId()).isNull();
-            assertThat(response.provider()).isEqualTo("google");
+            assertThat(response.provider()).isEqualTo(OAuthProvider.GOOGLE);
             assertThat(response.providerUserId()).isEqualTo("google-user-123");
             assertThat(response.createdAt()).isNull();
         }
@@ -84,14 +85,14 @@ class OauthAccountMapperTest {
         void 사용자가_없으면_userId_null_반환() {
             // given
             OauthAccount newAccount =
-                    OauthAccount.create(null, "google", "google-user-123");
+                    OauthAccount.create(null, OAuthProvider.GOOGLE, "google-user-123");
 
             // when
             OauthAccountResponse response = mapper.toResponse(newAccount);
 
             // then
             assertThat(response.userId()).isNull();
-            assertThat(response.provider()).isEqualTo("google");
+            assertThat(response.provider()).isEqualTo(OAuthProvider.GOOGLE);
             assertThat(response.providerUserId()).isEqualTo("google-user-123");
         }
 

@@ -13,7 +13,7 @@ class OauthAccountTest {
     void OAuth_계정_생성() {
         // given
         User user = User.create("홍길동", "user@example.com", null);
-        String provider = "google";
+        OAuthProvider provider = OAuthProvider.GOOGLE;
         String providerUserId = "google-user-123";
 
         // when

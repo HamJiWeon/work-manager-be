@@ -1,4 +1,4 @@
-package work.managerbe.board.dto;
+package work.managerbe.board.dto.response;
 
 import work.managerbe.board.domain.Board;
 
