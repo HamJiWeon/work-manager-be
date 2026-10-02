@@ -24,6 +24,9 @@ public class Card extends BaseEntity {
 
     private String content;
 
+    @Enumerated(value = EnumType.STRING)
+    private CardStatus status;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id")
     private Member member;
