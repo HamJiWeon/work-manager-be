@@ -12,6 +12,8 @@ import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
+import work.managerbe.global.exception.workspace.WorkspaceErrorCode;
+import work.managerbe.global.exception.workspace.WorkspaceException;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.repository.ProjectRepository;
 import work.managerbe.user.repository.UserRepository;
@@ -39,6 +41,7 @@ class WorkspaceServiceImplTest {
     private static final UUID REQUESTER_ID = CREATOR_ID;
     private static final UUID OTHER_USER_ID = UUID.randomUUID();
     private static final String PROJECT_CODE = "WORK";
+    private static final Long WORKSPACE_ID = 5L;
 
     @Mock
     WorkspaceRepository workspaceRepository;
@@ -143,6 +146,56 @@ class WorkspaceServiceImplTest {
         assertThatThrownBy(() -> service.create(CREATOR_ID, PROJECT_CODE, REQUESTER_ID, request))
                 .isInstanceOfSatisfying(ProjectException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
+        verifyNoInteractions(workspaceRepository, mapper);
+    }
+
+    @Test
+    void 단건_조회에_성공하면_프로젝트_경로로_조회하고_응답을_반환한다() {
+        // given
+        Workspace workspace = mock(Workspace.class);
+        WorkspaceResponse expected = new WorkspaceResponse(
+                WORKSPACE_ID, 1L, "프로젝트 개발 가이드", "# 개발 가이드",
+                LocalDateTime.now(), LocalDateTime.now());
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(workspaceRepository.findByProjectPath(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(workspace));
+        when(mapper.toResponse(workspace)).thenReturn(expected);
+
+        // when
+        WorkspaceResponse response = service.get(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, REQUESTER_ID);
+
+        // then
+        verify(workspaceRepository).findByProjectPath(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE);
+        verify(mapper).toResponse(workspace);
+        assertThat(response).isSameAs(expected);
+    }
+
+    @Test
+    void 프로젝트_경로에_속한_워크스페이스가_없으면_조회하지_못한다() {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(workspaceRepository.findByProjectPath(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.empty());
+
+        // when / then
+        assertThatThrownBy(() -> service.get(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, REQUESTER_ID))
+                .isInstanceOfSatisfying(WorkspaceException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND));
+        verify(workspaceRepository).findByProjectPath(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE);
+        verifyNoInteractions(mapper);
+    }
+
+    @Test
+    void 단건_조회_요청자가_프로젝트_생성자가_아니면_조회하지_못한다() {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(userRepository.existsById(OTHER_USER_ID)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.get(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, OTHER_USER_ID))
+                .isInstanceOfSatisfying(CommonException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
         verifyNoInteractions(workspaceRepository, mapper);
     }
 }

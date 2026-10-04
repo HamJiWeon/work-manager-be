@@ -15,6 +15,8 @@ import work.managerbe.global.exception.CommonException;
 import work.managerbe.global.exception.ErrorCode;
 import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
+import work.managerbe.global.exception.workspace.WorkspaceErrorCode;
+import work.managerbe.global.exception.workspace.WorkspaceException;
 import work.managerbe.workspace.dto.request.WorkspaceCreateRequest;
 import work.managerbe.workspace.dto.response.WorkspaceResponse;
 import work.managerbe.workspace.service.WorkspaceService;
@@ -25,6 +27,7 @@ import java.util.UUID;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -38,6 +41,7 @@ class WorkspaceControllerTest {
 
     private static final UUID CREATOR_ID = UUID.randomUUID();
     private static final String PROJECT_CODE = "WORK";
+    private static final Long WORKSPACE_ID = 5L;
 
     @Autowired
     MockMvc mockMvc;
@@ -121,6 +125,44 @@ class WorkspaceControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void 단건_조회에_성공하면_200과_워크스페이스를_반환한다() throws Exception {
+        // given
+        authenticate(CREATOR_ID);
+        LocalDateTime createdAt = LocalDateTime.of(2026, 9, 14, 9, 0);
+        WorkspaceResponse response = new WorkspaceResponse(
+                WORKSPACE_ID, 1L, "프로젝트 개발 가이드", "# 개발 가이드", createdAt, createdAt);
+        when(workspaceService.get(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, CREATOR_ID))
+                .thenReturn(response);
+
+        // when / then
+        mockMvc.perform(get("/{userId}/{code}/workspaces/{workspaceId}",
+                        CREATOR_ID, PROJECT_CODE, WORKSPACE_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(WORKSPACE_ID))
+                .andExpect(jsonPath("$.projectId").value(1))
+                .andExpect(jsonPath("$.title").value("프로젝트 개발 가이드"))
+                .andExpect(jsonPath("$.content").value("# 개발 가이드"))
+                .andExpect(jsonPath("$.createdAt").value("2026-09-14T09:00:00"))
+                .andExpect(jsonPath("$.updatedAt").value("2026-09-14T09:00:00"));
+        verify(workspaceService).get(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, CREATOR_ID);
+    }
+
+    @Test
+    void 단건_조회_대상이_없으면_404를_반환한다() throws Exception {
+        // given
+        authenticate(CREATOR_ID);
+        when(workspaceService.get(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, CREATOR_ID))
+                .thenThrow(WorkspaceException.of(WorkspaceErrorCode.WORKSPACE_NOT_FOUND));
+
+        // when / then
+        mockMvc.perform(get("/{userId}/{code}/workspaces/{workspaceId}",
+                        CREATOR_ID, PROJECT_CODE, WORKSPACE_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("WORKSPACE_NOT_FOUND"));
+        verify(workspaceService).get(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, CREATOR_ID);
     }
 
     private static void authenticate(UUID requesterId) {
