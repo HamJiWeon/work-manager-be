@@ -8,4 +8,6 @@ import java.util.UUID;
 public interface WorkspaceService {
 
     WorkspaceResponse create(UUID userId, String code, UUID requesterId, WorkspaceCreateRequest request);
+
+    WorkspaceResponse get(UUID userId, String code, Long workspaceId, UUID requesterId);
 }
