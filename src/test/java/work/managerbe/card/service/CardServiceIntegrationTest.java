@@ -5,6 +5,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.access.AccessDeniedException;
@@ -18,6 +21,11 @@ import work.managerbe.card.repository.CardRepository;
 import work.managerbe.global.exception.board.BoardException;
 import work.managerbe.global.exception.card.CardException;
 import work.managerbe.global.exception.member.MemberException;
+import work.managerbe.global.exception.card.CardErrorCode;
+import work.managerbe.global.exception.project.ProjectErrorCode;
+import work.managerbe.global.exception.project.ProjectException;
+import work.managerbe.global.exception.user.UserErrorCode;
+import work.managerbe.global.exception.user.UserException;
 import work.managerbe.member.domain.Member;
 import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.project.domain.Project;
@@ -137,6 +145,62 @@ class CardServiceIntegrationTest {
                 LocalDate.of(2026, 9, 15), LocalDate.of(2026, 9, 11));
         // when / then
         assertThatThrownBy(() -> create(request, requester.getId())).isInstanceOf(CardException.class);
+        assertThat(cards.count()).isZero();
+    }
+
+    /**
+     * 공개 생성 메서드를 호출해 null 요청이 저장 전에 거절되는지 확인한다.
+     */
+    @Test
+    void 생성_요청이_없으면_거절한다() {
+        // given / when / then
+        assertThatThrownBy(() -> create(null, requester.getId()))
+                .isInstanceOfSatisfying(CardException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(CardErrorCode.CARD_INVALID_REQUEST));
+        assertThat(cards.count()).isZero();
+    }
+
+    /**
+     * 요청자 ID 누락을 사용자 오류로 반환하고 카드를 저장하지 않는지 확인한다.
+     */
+    @Test
+    void 요청자_ID가_없으면_거절한다() {
+        // given
+        var request = request(project.getId(), board.getId(), assignee.getId(), null, null);
+        // when / then
+        assertThatThrownBy(() -> create(request, null))
+                .isInstanceOfSatisfying(UserException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+        assertThat(cards.count()).isZero();
+    }
+
+    /**
+     * 프로젝트 생성자 ID가 없을 때 프로젝트 오류로 거절하는지 확인한다.
+     */
+    @Test
+    void 프로젝트_생성자_ID가_없으면_거절한다() {
+        // given
+        var request = request(project.getId(), board.getId(), assignee.getId(), null, null);
+        // when / then
+        assertThatThrownBy(() -> service.create(null, project.getCode(), board.getId(), requester.getId(), request))
+                .isInstanceOfSatisfying(ProjectException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
+        assertThat(cards.count()).isZero();
+    }
+
+    /**
+     * 프로젝트 코드의 null, 빈 문자열 및 공백을 각각 공개 메서드로 검증한다.
+     */
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "\t\n"})
+    void 프로젝트_코드가_없거나_공백이면_거절한다(String code) {
+        // given
+        var request = request(project.getId(), board.getId(), assignee.getId(), null, null);
+        // when / then
+        assertThatThrownBy(() -> service.create(creator.getId(), code, board.getId(), requester.getId(), request))
+                .isInstanceOfSatisfying(ProjectException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
         assertThat(cards.count()).isZero();
     }
 
