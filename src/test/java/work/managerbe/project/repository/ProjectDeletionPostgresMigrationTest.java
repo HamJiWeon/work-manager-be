@@ -15,14 +15,14 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * PostgreSQL 16에 V1부터 V5까지 적용하고 프로젝트 FK의 cascade 삭제 동작을 검증한다.
+ * PostgreSQL 16에 V1부터 V13까지 적용하고 프로젝트 FK의 cascade 삭제 동작을 검증한다.
  */
 @Testcontainers
 class ProjectDeletionPostgresMigrationTest {
 
     private static final String POSTGRES_IMAGE = "postgres:16-alpine";
     private static final String MIGRATION_LOCATION = "classpath:db/migration";
-    private static final String TARGET_VERSION = "5";
+    private static final String TARGET_VERSION = "13";
     private static final UUID CREATOR_ID =
             UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final long PROJECT_ID = 1L;
@@ -42,6 +42,12 @@ class ProjectDeletionPostgresMigrationTest {
             JdbcTemplate jdbc = jdbc(connection);
             migrate(connection);
             insertProjectData(jdbc);
+
+            assertThat(jdbc.queryForObject("SELECT status FROM cards WHERE project_id = ?",
+                    String.class, PROJECT_ID)).isEqualTo("NOT_STARTED");
+            org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                    jdbc.update("UPDATE cards SET status = 'UNKNOWN' WHERE project_id = ?", PROJECT_ID))
+                    .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
             // when
             int deletedProjects = jdbc.update("DELETE FROM projects WHERE id = ?", PROJECT_ID);
@@ -86,7 +92,7 @@ class ProjectDeletionPostgresMigrationTest {
     }
 
     /**
-     * 운영 환경과 동일한 마이그레이션 파일을 V5까지 순서대로 적용한다.
+     * 운영 환경과 동일한 마이그레이션 파일을 V13까지 순서대로 적용한다.
      */
     private static void migrate(Connection connection) {
         Flyway.configure()

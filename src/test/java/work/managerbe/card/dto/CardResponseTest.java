@@ -3,6 +3,7 @@ package work.managerbe.card.dto;
 import org.junit.jupiter.api.Test;
 import work.managerbe.board.domain.Board;
 import work.managerbe.card.domain.Card;
+import work.managerbe.card.dto.response.CardResponse;
 import work.managerbe.member.domain.Member;
 import work.managerbe.project.domain.Project;
 
@@ -41,6 +42,7 @@ class CardResponseTest {
         when(card.getUsername()).thenReturn(USERNAME);
         when(card.getTitle()).thenReturn(TITLE);
         when(card.getContent()).thenReturn(CONTENT);
+        when(card.getStatus()).thenReturn(work.managerbe.card.domain.CardStatus.DONE);
         when(card.getMember()).thenReturn(member);
         when(card.getProject()).thenReturn(project);
         when(card.getBoard()).thenReturn(board);
@@ -60,6 +62,7 @@ class CardResponseTest {
         assertThat(response.username()).isEqualTo(USERNAME);
         assertThat(response.title()).isEqualTo(TITLE);
         assertThat(response.content()).isEqualTo(CONTENT);
+        assertThat(response.status()).isEqualTo(work.managerbe.card.domain.CardStatus.DONE);
         assertThat(response.memberId()).isEqualTo(MEMBER_ID);
         assertThat(response.projectId()).isEqualTo(PROJECT_ID);
         assertThat(response.boardId()).isEqualTo(BOARD_ID);

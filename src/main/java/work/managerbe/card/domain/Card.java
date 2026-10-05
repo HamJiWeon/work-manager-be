@@ -9,6 +9,7 @@ import work.managerbe.board.domain.Board;
 import work.managerbe.global.base.BaseEntity;
 import work.managerbe.member.domain.Member;
 import work.managerbe.project.domain.Project;
+import work.managerbe.user.domain.User;
 
 import java.time.LocalDate;
 
@@ -18,6 +19,10 @@ import java.time.LocalDate;
 @Table(name = "cards")
 public class Card extends BaseEntity {
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
     private String username;
 
     private String title;
@@ -25,6 +30,7 @@ public class Card extends BaseEntity {
     private String content;
 
     @Enumerated(value = EnumType.STRING)
+    @Column(nullable = false)
     private CardStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -48,6 +54,8 @@ public class Card extends BaseEntity {
             String username, String title, String content, Member member,
             Project project, Board board, LocalDate startDate, LocalDate endDate
     ) {
+        this.user = member == null ? null : member.getUser();
+        this.status = CardStatus.NOT_STARTED;
         this.username = username;
         this.title = title;
         this.content = content;
@@ -75,5 +83,17 @@ public class Card extends BaseEntity {
                 startDate,
                 endDate
         );
+    }
+    /**
+     * 인증된 생성자와 요청한 상태를 설정하여 저장 가능한 카드를 생성한다.
+     */
+    public static Card create(
+            User user, String username, String title, String content, CardStatus status,
+            Member member, Project project, Board board, LocalDate startDate, LocalDate endDate
+    ) {
+        Card card = create(username, title, content, member, project, board, startDate, endDate);
+        card.user = user;
+        card.status = status;
+        return card;
     }
 }
