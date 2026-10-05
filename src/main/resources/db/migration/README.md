@@ -23,4 +23,6 @@ H2와 PostgreSQL은 SQL 및 제약 동작에 차이가 있으므로 PostgreSQL�
 `V13__add_card_status.sql`은 기존 카드 상태를 `NOT_STARTED`로 채우고 세 가지 상태만 허용한다.
 카드 생성 시 `user_id`는 인증된 생성자, `member_id`는 해당 프로젝트의 활성 담당자를 저장한다.
 H2는 컬럼 추가 시 카드 테이블을 재생성하므로 프로젝트 외래 키의 등록 순서가 바뀐다.
-카드가 보드·멤버보다 먼저 연쇄 삭제되도록 기존 프로젝트 외래 키를 같은 정의로 재등록한다.
+`db/vendor/h2/V14__restore_project_cascade_order.sql`에서 카드가 보드·멤버보다 먼저 연쇄 삭제되도록 기존 프로젝트 외래 키를 같은 정의로 재등록한다.
+공통 마이그레이션과 `classpath:db/vendor/{vendor}`를 함께 로드하며 PostgreSQL에는 H2 전용 V14를 적용하지 않는다.
+Flyway API를 직접 호출하는 테스트에서는 필요한 DB 전용 경로를 명시한다.

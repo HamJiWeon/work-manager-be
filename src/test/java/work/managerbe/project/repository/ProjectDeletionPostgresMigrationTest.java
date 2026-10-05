@@ -23,6 +23,13 @@ class ProjectDeletionPostgresMigrationTest {
     private static final String POSTGRES_IMAGE = "postgres:16-alpine";
     private static final String MIGRATION_LOCATION = "classpath:db/migration";
     private static final String TARGET_VERSION = "13";
+    private static final String PREVIOUS_VERSION = "12";
+    private static final String PROJECT_CONSTRAINTS_QUERY = """
+            SELECT oid FROM pg_constraint
+            WHERE connamespace = current_schema()::regnamespace
+              AND conname IN ('fk_boards_project', 'fk_workspaces_project', 'fk_members_project')
+            ORDER BY conname
+            """;
     private static final UUID CREATOR_ID =
             UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final long PROJECT_ID = 1L;
@@ -33,6 +40,7 @@ class ProjectDeletionPostgresMigrationTest {
     private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(POSTGRES_IMAGE);
 
     /**
+     * V13 적용 전후 프로젝트 FK의 OID가 유지되는지 확인해 불필요한 재등록을 방지한다.
      * 프로젝트 한 행만 삭제해 카드, 보드, 워크스페이스, 멤버는 제거되고 사용자는 유지되는지 확인한다.
      */
     @Test
@@ -40,7 +48,12 @@ class ProjectDeletionPostgresMigrationTest {
         // given
         try (Connection connection = database()) {
             JdbcTemplate jdbc = jdbc(connection);
-            migrate(connection);
+            migrate(connection, PREVIOUS_VERSION);
+            var projectConstraintIds = jdbc.queryForList(PROJECT_CONSTRAINTS_QUERY, Long.class);
+            assertThat(projectConstraintIds).hasSize(3);
+            migrate(connection, TARGET_VERSION);
+            assertThat(jdbc.queryForList(PROJECT_CONSTRAINTS_QUERY, Long.class))
+                    .containsExactlyElementsOf(projectConstraintIds);
             insertProjectData(jdbc);
 
             assertThat(jdbc.queryForObject("SELECT status FROM cards WHERE project_id = ?",
@@ -94,13 +107,13 @@ class ProjectDeletionPostgresMigrationTest {
     /**
      * 운영 환경과 동일한 마이그레이션 파일을 V13까지 순서대로 적용한다.
      */
-    private static void migrate(Connection connection) {
+    private static void migrate(Connection connection, String version) {
         Flyway.configure()
                 .dataSource(new SingleConnectionDataSource(connection, true))
                 .locations(MIGRATION_LOCATION)
                 .defaultSchema(connectionSchema(connection))
                 .schemas(connectionSchema(connection))
-                .target(TARGET_VERSION)
+                .target(version)
                 .load()
                 .migrate();
     }
