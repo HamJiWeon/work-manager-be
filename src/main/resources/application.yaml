@@ -5,7 +5,7 @@ spring:
     hibernate:
       ddl-auto: validate
   flyway:
-    locations: classpath:db/migration
+    locations: classpath:db/migration,classpath:db/vendor/{vendor}
     validate-migration-naming: true
 security:
   jwt:

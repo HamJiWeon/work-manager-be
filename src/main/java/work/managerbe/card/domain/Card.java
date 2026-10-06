@@ -2,13 +2,13 @@ package work.managerbe.card.domain;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import work.managerbe.board.domain.Board;
 import work.managerbe.global.base.BaseEntity;
 import work.managerbe.member.domain.Member;
 import work.managerbe.project.domain.Project;
+import work.managerbe.user.domain.User;
 
 import java.time.LocalDate;
 
@@ -18,11 +18,19 @@ import java.time.LocalDate;
 @Table(name = "cards")
 public class Card extends BaseEntity {
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
     private String username;
 
     private String title;
 
     private String content;
+
+    @Enumerated(value = EnumType.STRING)
+    @Column(nullable = false)
+    private CardStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id")
@@ -40,11 +48,12 @@ public class Card extends BaseEntity {
 
     private LocalDate endDate;
 
-    @Builder
     private Card(
-            String username, String title, String content, Member member,
+            User user, String username, String title, String content, CardStatus status, Member member,
             Project project, Board board, LocalDate startDate, LocalDate endDate
     ) {
+        this.user = user;
+        this.status = status;
         this.username = username;
         this.title = title;
         this.content = content;
@@ -56,21 +65,13 @@ public class Card extends BaseEntity {
     }
 
     /**
-     * 전달받은 속성과 연관 엔티티로 새 카드를 생성한다.
+     * 생성자와 담당자를 독립적으로 전달받아 요청한 상태와 연관 엔티티로 카드를 생성한다.
      */
     public static Card create(
-            String username, String title, String content, Member member,
-            Project project, Board board, LocalDate startDate, LocalDate endDate
+            User user, String username, String title, String content, CardStatus status,
+            Member member, Project project, Board board, LocalDate startDate, LocalDate endDate
     ) {
-        return new Card(
-                username,
-                title,
-                content,
-                member,
-                project,
-                board,
-                startDate,
-                endDate
-        );
+        return new Card(user, username, title, content, status,
+                member, project, board, startDate, endDate);
     }
 }

@@ -1,6 +1,7 @@
-package work.managerbe.card.dto;
+package work.managerbe.card.dto.response;
 
 import work.managerbe.card.domain.Card;
+import work.managerbe.card.domain.CardStatus;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -13,6 +14,7 @@ public record CardResponse(
         String username,
         String title,
         String content,
+        CardStatus status,
         Long memberId,
         Long projectId,
         Long boardId,
@@ -30,6 +32,7 @@ public record CardResponse(
                 card.getUsername(),
                 card.getTitle(),
                 card.getContent(),
+                card.getStatus(),
                 card.getMember() == null ? null : card.getMember().getId(),
                 card.getProject() == null ? null : card.getProject().getId(),
                 card.getBoard() == null ? null : card.getBoard().getId(),

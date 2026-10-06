@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.card.domain.Card;
+import work.managerbe.card.domain.CardStatus;
 import work.managerbe.member.domain.Member;
 import work.managerbe.project.domain.Project;
 import work.managerbe.user.domain.User;
@@ -17,8 +18,7 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Flyway 스키마의 필수 user_id를 SQL로 채운 뒤 실제 카드 조회와 삭제를 검증한다.
- * Card에 user_id 매핑이 없어 이 테스트는 JPA 저장 동작을 검증하지 않는다.
+ * Flyway 스키마에서 기존 SQL 데이터 조회와 카드 JPA 저장 및 삭제를 검증한다.
  */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:card-repository-test;DB_CLOSE_DELAY=-1",
@@ -78,6 +78,25 @@ class CardRepositoryTest {
                 .setParameter("endDate", END_DATE)
                 .executeUpdate();
         entityManager.clear();
+    }
+
+    @Test
+    void 카드를_JPA로_저장하면_필수_생성자와_상태가_보존된다() {
+        // given
+        User creator = User.create("생성자", "creator@example.com", null);
+        entityManager.persist(creator);
+        Card card = Card.create(creator, USERNAME, TITLE, CONTENT, CardStatus.IN_PROGRESS,
+                member, project, board, START_DATE, END_DATE);
+        // when
+        Long savedId = cardRepository.saveAndFlush(card).getId();
+        entityManager.clear();
+        Card found = cardRepository.findById(savedId).orElseThrow();
+        // then
+        assertThat(found.getUser().getId()).isEqualTo(creator.getId());
+        assertThat(found.getMember().getUser().getId()).isEqualTo(user.getId());
+        assertThat(found.getStatus()).isEqualTo(CardStatus.IN_PROGRESS);
+        assertThat(found.getCreatedAt()).isNotNull();
+        assertThat(found.getUpdatedAt()).isNotNull();
     }
 
     @Test
