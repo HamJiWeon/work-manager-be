@@ -24,15 +24,20 @@ class CardTest {
     @Test
     void 전달한_속성과_연관_엔티티로_카드를_생성한다() {
         // given
-        Project project = Project.create(User.create("생성자", "creator@example.com", null), "TEST", "테스트 프로젝트", null);
+        User creator = User.create("생성자", "creator@example.com", null);
+        Project project = Project.create(creator, "TEST", "테스트 프로젝트", null);
         User user = User.create(USERNAME, "test@example.com", null);
         Member member = Member.create(user, project, "MEMBER");
         Board board = Board.create("진행 중", project);
 
         // when
-        Card card = Card.create(USERNAME, TITLE, CONTENT, member, project, board, START_DATE, END_DATE);
+        Card card = Card.create(creator, USERNAME, TITLE, CONTENT, CardStatus.IN_PROGRESS,
+                member, project, board, START_DATE, END_DATE);
 
         // then
+        assertThat(card.getUser()).isSameAs(creator);
+        assertThat(card.getMember().getUser()).isSameAs(user);
+        assertThat(card.getStatus()).isEqualTo(CardStatus.IN_PROGRESS);
         assertThat(card.getUsername()).isEqualTo(USERNAME);
         assertThat(card.getTitle()).isEqualTo(TITLE);
         assertThat(card.getContent()).isEqualTo(CONTENT);
@@ -49,13 +54,15 @@ class CardTest {
     @Test
     void 일정이_없는_카드를_생성한다() {
         // given
-        Project project = Project.create(User.create("생성자", "creator@example.com", null), "TEST", "테스트 프로젝트", null);
+        User creator = User.create("생성자", "creator@example.com", null);
+        Project project = Project.create(creator, "TEST", "테스트 프로젝트", null);
         User user = User.create(USERNAME, "test@example.com", null);
         Member member = Member.create(user, project, "MEMBER");
         Board board = Board.create("진행 중", project);
 
         // when
-        Card card = Card.create(USERNAME, TITLE, CONTENT, member, project, board, null, null);
+        Card card = Card.create(creator, USERNAME, TITLE, CONTENT, CardStatus.IN_PROGRESS,
+                member, project, board, null, null);
 
         // then
         assertThat(card.getStartDate()).isNull();

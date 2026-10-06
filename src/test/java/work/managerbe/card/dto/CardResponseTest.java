@@ -75,7 +75,8 @@ class CardResponseTest {
     @Test
     void 연관_엔티티와_일정이_없어도_응답으로_변환한다() {
         // given
-        Card card = Card.create(USERNAME, TITLE, CONTENT, null, null, null, null, null);
+        Card card = Card.create(null, USERNAME, TITLE, CONTENT,
+                work.managerbe.card.domain.CardStatus.NOT_STARTED, null, null, null, null, null);
 
         // when
         CardResponse response = CardResponse.from(card);

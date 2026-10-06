@@ -8,6 +8,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.card.domain.Card;
+import work.managerbe.card.domain.CardStatus;
 import work.managerbe.member.domain.Member;
 import work.managerbe.project.domain.Project;
 import work.managerbe.user.domain.User;
@@ -82,14 +83,18 @@ class CardRepositoryTest {
     @Test
     void 카드를_JPA로_저장하면_필수_생성자와_상태가_보존된다() {
         // given
-        Card card = Card.create(USERNAME, TITLE, CONTENT, member, project, board, START_DATE, END_DATE);
+        User creator = User.create("생성자", "creator@example.com", null);
+        entityManager.persist(creator);
+        Card card = Card.create(creator, USERNAME, TITLE, CONTENT, CardStatus.IN_PROGRESS,
+                member, project, board, START_DATE, END_DATE);
         // when
         Long savedId = cardRepository.saveAndFlush(card).getId();
         entityManager.clear();
         Card found = cardRepository.findById(savedId).orElseThrow();
         // then
-        assertThat(found.getUser().getId()).isEqualTo(user.getId());
-        assertThat(found.getStatus()).isEqualTo(work.managerbe.card.domain.CardStatus.NOT_STARTED);
+        assertThat(found.getUser().getId()).isEqualTo(creator.getId());
+        assertThat(found.getMember().getUser().getId()).isEqualTo(user.getId());
+        assertThat(found.getStatus()).isEqualTo(CardStatus.IN_PROGRESS);
         assertThat(found.getCreatedAt()).isNotNull();
         assertThat(found.getUpdatedAt()).isNotNull();
     }
