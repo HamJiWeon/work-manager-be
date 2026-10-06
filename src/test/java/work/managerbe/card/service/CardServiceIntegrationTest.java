@@ -204,6 +204,61 @@ class CardServiceIntegrationTest {
         assertThat(cards.count()).isZero();
     }
 
+    /**
+     * 저장된 카드 전체 정보와 날짜가 단건 조회에서도 유지되는지 확인한다.
+     */
+    @Test
+    void 활성_멤버는_카드를_단건_조회한다() {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(),
+                LocalDate.of(2026, 9, 11), LocalDate.of(2026, 9, 15)), requester.getId());
+        // when
+        var response = service.get(creator.getId(), project.getCode(), board.getId(), saved.id(), requester.getId());
+        // then
+        assertThat(response).isEqualTo(saved);
+    }
+
+    /**
+     * 없는 카드와 경로의 보드 또는 프로젝트가 다른 카드를 같은 오류로 거절한다.
+     */
+    @Test
+    void 카드가_없거나_경로_소속이_다르면_거절한다() {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var other = projects.save(Project.create(creator, "OTHER", "다른 프로젝트", null));
+        members.save(Member.create(requester, other, "MEMBER"));
+        var otherBoard = boards.save(Board.create("다른 보드", other));
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), board.getId(),
+                Long.MAX_VALUE, requester.getId()))
+                .isInstanceOfSatisfying(CardException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(CardErrorCode.CARD_NOT_FOUND));
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), otherBoard.getId(),
+                saved.id(), requester.getId()))
+                .isInstanceOfSatisfying(CardException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(CardErrorCode.CARD_NOT_FOUND));
+        assertThatThrownBy(() -> service.get(creator.getId(), other.getCode(), board.getId(),
+                saved.id(), requester.getId()))
+                .isInstanceOfSatisfying(CardException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(CardErrorCode.CARD_NOT_FOUND));
+    }
+
+    /**
+     * 비참여자와 탈퇴한 멤버의 조회를 거절한다.
+     */
+    @Test
+    void 비참여자와_탈퇴자는_카드를_조회할_수_없다() {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var outsider = users.save(User.create("외부인", "outsider@test.com", null));
+        assignee.leave(LocalDateTime.now().plusSeconds(1));
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), board.getId(),
+                saved.id(), outsider.getId())).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), board.getId(),
+                saved.id(), creator.getId())).isInstanceOf(AccessDeniedException.class);
+    }
+
     private CardResponse create(CardCreateRequest request, UUID requesterId) {
         return service.create(creator.getId(), project.getCode(), board.getId(), requesterId, request);
     }

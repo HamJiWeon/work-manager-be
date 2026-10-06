@@ -36,6 +36,37 @@ public class CardServiceImpl implements CardService {
     private final UserRepository userRepository;
 
     /**
+     * 읽기 전용 트랜잭션에서 사용자와 프로젝트의 활성 참여를 확인한다.
+     * 카드 ID와 프로젝트·보드 소속이 모두 일치할 때만 응답하며 불일치는 카드 없음으로 처리한다.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public CardResponse get(UUID creatorId, String code, Long boardId, Long cardId, UUID requesterId) {
+        validateRequesterId(requesterId);
+
+        if (!userRepository.existsById(requesterId)) {
+            throw UserException.of(UserErrorCode.USER_NOT_FOUND);
+        }
+
+        validateProjectIdentifier(creatorId, code);
+
+        Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+
+        if (!memberRepository.existsByUserIdAndProjectId(requesterId, project.getId())) {
+            throw new AccessDeniedException("프로젝트의 활성 멤버만 카드를 조회할 수 있습니다.");
+        }
+
+        if (cardId == null || boardId == null) {
+            throw CardException.of(CardErrorCode.CARD_NOT_FOUND);
+        }
+
+        Card card = cardRepository.findByIdAndProject_IdAndBoard_Id(cardId, project.getId(), boardId)
+                .orElseThrow(() -> CardException.of(CardErrorCode.CARD_NOT_FOUND));
+        return CardResponse.from(card);
+    }
+
+    /**
      * 프로젝트 잠금으로 보드 삭제와 생성을 직렬화하고 요청자의 활성 참여를 확인한다.
      * 경로·본문 ID 및 보드·활성 담당자의 프로젝트 소속을 검증한 뒤 인증된 사용자를 생성자로 저장한다.
      */
