@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import work.managerbe.board.domain.Board;
 import work.managerbe.global.base.BaseEntity;
+import work.managerbe.global.exception.member.MemberException;
+import work.managerbe.global.exception.member.MemberErrorCode;
 import work.managerbe.member.domain.Member;
 import work.managerbe.project.domain.Project;
 
@@ -40,11 +42,16 @@ public class Card extends BaseEntity {
 
     private LocalDate endDate;
 
+    /** 새 카드 생성 시 탈퇴한 멤버를 담당자로 지정하는 요청을 거절한다. */
     @Builder
     private Card(
             String username, String title, String content, Member member,
             Project project, Board board, LocalDate startDate, LocalDate endDate
     ) {
+        if (member != null && member.getLeftAt() != null) {
+            throw MemberException.of(
+                    MemberErrorCode.MEMBER_NOT_FOUND);
+        }
         this.username = username;
         this.title = title;
         this.content = content;
