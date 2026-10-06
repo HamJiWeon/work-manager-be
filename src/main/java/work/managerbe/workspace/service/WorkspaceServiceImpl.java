@@ -9,6 +9,8 @@ import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
+import work.managerbe.global.exception.workspace.WorkspaceErrorCode;
+import work.managerbe.global.exception.workspace.WorkspaceException;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.repository.ProjectRepository;
 import work.managerbe.user.repository.UserRepository;
@@ -46,6 +48,18 @@ public class WorkspaceServiceImpl implements WorkspaceService{
         Workspace workspace = Workspace.create(project, request.title(), request.content());
         Workspace savedWorkspace = workspaceRepository.save(workspace);
         return mapper.toResponse(savedWorkspace);
+    }
+
+    @Override
+    public WorkspaceResponse get(UUID userId, String code, Long workspaceId, UUID requesterId) {
+        userIdValidation(userId);
+        userIdValidation(requesterId);
+        projectCodeValidation(code);
+        projectCreatorPermissionValidation(userId, requesterId);
+
+        Workspace workspace = workspaceRepository.findByProjectPath(workspaceId, userId, code)
+                .orElseThrow(() -> WorkspaceException.of(WorkspaceErrorCode.WORKSPACE_NOT_FOUND));
+        return mapper.toResponse(workspace);
     }
 
     private static void projectCreatorPermissionValidation(UUID creatorId, UUID requesterId) {

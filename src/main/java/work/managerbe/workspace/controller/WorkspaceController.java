@@ -27,7 +27,17 @@ public class WorkspaceController {
             @PathVariable("code") String code,
             @AuthenticationPrincipal UUID requesterId,
             @RequestBody WorkspaceCreateRequest request
-            ) {
+    ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(workspaceService.create(userId, code, requesterId, request));
+    }
+
+    @GetMapping("/{workspaceId}")
+    public ResponseEntity<WorkspaceResponse> get(
+            @PathVariable("userId") UUID userId,
+            @PathVariable("code") String code,
+            @PathVariable("workspaceId") Long workspaceId,
+            @AuthenticationPrincipal UUID requesterId
+    ) {
+        return ResponseEntity.ok().body(workspaceService.get(userId, code, workspaceId, requesterId));
     }
 }
