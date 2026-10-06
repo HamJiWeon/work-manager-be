@@ -35,7 +35,7 @@ public class WorkspaceController {
     public ResponseEntity<WorkspaceResponse> get(
             @PathVariable("userId") UUID userId,
             @PathVariable("code") String code,
-            @PathVariable Long workspaceId,
+            @PathVariable("workspaceId") Long workspaceId,
             @AuthenticationPrincipal UUID requesterId
     ) {
         return ResponseEntity.ok().body(workspaceService.get(userId, code, workspaceId, requesterId));
