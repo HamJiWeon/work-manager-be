@@ -100,7 +100,7 @@ public class WorkspaceServiceImpl implements WorkspaceService{
         projectCodeValidation(code);
         projectCreatorPermissionValidation(userId, requesterId);
 
-        Workspace workspace = workspaceRepository.findByProjectPath(workspaceId, userId, code)
+        Workspace workspace = workspaceRepository.findByProjectPathForUpdate(workspaceId, userId, code)
                 .orElseThrow(() -> WorkspaceException.of(WorkspaceErrorCode.WORKSPACE_NOT_FOUND));
 
         workspace.update(request.title(), request.content());
