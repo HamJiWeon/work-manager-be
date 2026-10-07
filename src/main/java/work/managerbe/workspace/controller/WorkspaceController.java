@@ -7,6 +7,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import work.managerbe.workspace.dto.request.WorkspaceCreateRequest;
 import work.managerbe.workspace.dto.response.WorkspaceResponse;
+import work.managerbe.workspace.dto.response.WorkspaceSliceResponse;
 import work.managerbe.workspace.service.WorkspaceService;
 
 import java.util.UUID;
@@ -39,5 +40,15 @@ public class WorkspaceController {
             @AuthenticationPrincipal UUID requesterId
     ) {
         return ResponseEntity.ok().body(workspaceService.get(userId, code, workspaceId, requesterId));
+    }
+
+    @GetMapping
+    public ResponseEntity<WorkspaceSliceResponse> getAll(
+            @PathVariable("userId") UUID userId,
+            @PathVariable("code") String code,
+            @AuthenticationPrincipal UUID requesterId,
+            @RequestParam(name = "page", defaultValue = "0") int page
+    ) {
+        return ResponseEntity.ok().body(workspaceService.getAll(userId, code, requesterId, page));
     }
 }
