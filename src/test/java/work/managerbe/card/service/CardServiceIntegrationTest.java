@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -257,6 +258,65 @@ class CardServiceIntegrationTest {
                 saved.id(), outsider.getId())).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), board.getId(),
                 saved.id(), creator.getId())).isInstanceOf(AccessDeniedException.class);
+    }
+
+    /**
+     * 미가입 요청자가 카드 조회 전에 사용자 없음 오류로 거절되는지 확인한다.
+     */
+    @Test
+    void 미가입_요청자는_카드를_조회할_수_없다() {
+        // given
+        UUID unknownRequesterId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), board.getId(),
+                saved.id(), unknownRequesterId))
+                .isInstanceOfSatisfying(UserException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+    }
+
+    /**
+     * 요청자 ID 누락 시 단건 조회에서도 사용자 없음 오류를 반환하는지 확인한다.
+     */
+    @Test
+    void 조회_요청자_ID가_없으면_거절한다() {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), board.getId(), saved.id(), null))
+                .isInstanceOfSatisfying(UserException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+    }
+
+    /**
+     * 카드와 보드 ID의 개별 및 동시 누락을 검증해 조건식의 각 분기를 확인한다.
+     */
+    @ParameterizedTest
+    @CsvSource({"true, false", "false, true", "true, true"})
+    void 조회_카드나_보드_ID가_없으면_거절한다(boolean missingCardId, boolean missingBoardId) {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        Long cardId = missingCardId ? null : saved.id();
+        Long boardId = missingBoardId ? null : board.getId();
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), boardId, cardId, requester.getId()))
+                .isInstanceOfSatisfying(CardException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(CardErrorCode.CARD_NOT_FOUND));
+    }
+
+    /**
+     * 경로의 프로젝트가 존재하지 않으면 조회에서 프로젝트 없음 오류를 반환하는지 확인한다.
+     */
+    @Test
+    void 조회_대상_프로젝트가_없으면_거절한다() {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        String unknownProjectCode = "MISSING";
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), unknownProjectCode, board.getId(),
+                saved.id(), requester.getId()))
+                .isInstanceOfSatisfying(ProjectException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
     }
 
     private CardResponse create(CardCreateRequest request, UUID requesterId) {
