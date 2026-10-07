@@ -1,5 +1,9 @@
 package work.managerbe.workspace.controller;
 
+import java.util.List;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import work.managerbe.workspace.dto.response.WorkspaceSliceResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -170,4 +174,43 @@ class WorkspaceControllerTest {
         context.setAuthentication(new UsernamePasswordAuthenticationToken(requesterId, null));
         SecurityContextHolder.setContext(context);
     }
+
+    /** 기본 페이지와 명시한 페이지가 서비스에 전달되고 Slice 응답이 직렬화되는지 검증한다. */
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1})
+    void 목록_조회는_페이지와_Slice_응답을_전달한다(int page) throws Exception {
+        // given
+        authenticate(CREATOR_ID);
+        WorkspaceResponse item = new WorkspaceResponse(5L, 1L, "제목", "내용", null, null);
+        when(workspaceService.getAll(CREATOR_ID, PROJECT_CODE, CREATOR_ID, page))
+                .thenReturn(new WorkspaceSliceResponse(List.of(item), page, 10, page > 0, true));
+        var request = get("/{userId}/{code}/workspaces", CREATOR_ID, PROJECT_CODE);
+        if (page > 0) {
+            request.param("page", Integer.toString(page));
+        }
+
+        // when / then
+        mockMvc.perform(request)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(5))
+                .andExpect(jsonPath("$.content[0].title").value("제목"))
+                .andExpect(jsonPath("$.page").value(page))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.hasPrevious").value(page > 0))
+                .andExpect(jsonPath("$.hasNext").value(true));
+        verify(workspaceService).getAll(CREATOR_ID, PROJECT_CODE, CREATOR_ID, page);
+    }
+
+    @Test
+    void 목록_조회_페이지가_숫자가_아니면_400을_반환한다() throws Exception {
+        // given
+        authenticate(CREATOR_ID);
+
+        // when / then
+        mockMvc.perform(get("/{userId}/{code}/workspaces", CREATOR_ID, PROJECT_CODE)
+                        .param("page", "invalid"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(workspaceService);
+    }
+
 }

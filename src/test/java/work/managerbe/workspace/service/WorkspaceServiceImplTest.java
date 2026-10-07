@@ -1,5 +1,10 @@
 package work.managerbe.workspace.service;
 
+import java.util.List;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
+import work.managerbe.workspace.dto.response.WorkspaceSliceResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -198,4 +203,58 @@ class WorkspaceServiceImplTest {
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
         verifyNoInteractions(workspaceRepository, mapper);
     }
+
+    /** 저장소의 Slice를 DTO로 변환할 때 페이지 정보가 유지되는지 검증한다. */
+    @Test
+    void 목록_조회는_열_개_단위로_요청하고_변환한_Slice를_전달한다() {
+        // given
+        Workspace workspace = mock(Workspace.class);
+        WorkspaceResponse item = new WorkspaceResponse(5L, 1L, "제목", "내용", null, null);
+        PageRequest pageable = PageRequest.of(1, 10);
+        WorkspaceSliceResponse expected = new WorkspaceSliceResponse(List.of(item), 1, 10, true, true);
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(workspaceRepository.findAllByProjectPath(CREATOR_ID, PROJECT_CODE, pageable))
+                .thenReturn(new SliceImpl<>(List.of(workspace), pageable, true));
+        when(mapper.toResponse(workspace)).thenReturn(item);
+        when(mapper.toSliceResponse(any())).thenReturn(expected);
+
+        // when
+        WorkspaceSliceResponse result = service.getAll(CREATOR_ID, PROJECT_CODE, REQUESTER_ID, 1);
+
+        // then
+        ArgumentCaptor<Slice<WorkspaceResponse>> captor = ArgumentCaptor.captor();
+        verify(mapper).toSliceResponse(captor.capture());
+        assertThat(captor.getValue().getContent()).containsExactly(item);
+        assertThat(captor.getValue().getNumber()).isEqualTo(1);
+        assertThat(captor.getValue().getSize()).isEqualTo(10);
+        assertThat(captor.getValue().hasPrevious()).isTrue();
+        assertThat(captor.getValue().hasNext()).isTrue();
+        assertThat(result).isSameAs(expected);
+    }
+
+    @Test
+    void 목록_조회_페이지가_음수이면_저장소를_조회하지_않는다() {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, REQUESTER_ID, -1))
+                .isInstanceOfSatisfying(CommonException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
+        verifyNoInteractions(workspaceRepository, mapper);
+    }
+
+    @Test
+    void 목록_조회_요청자가_생성자가_아니면_저장소를_조회하지_않는다() {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(userRepository.existsById(OTHER_USER_ID)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, OTHER_USER_ID, 0))
+                .isInstanceOfSatisfying(CommonException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        verifyNoInteractions(workspaceRepository, mapper);
+    }
+
 }

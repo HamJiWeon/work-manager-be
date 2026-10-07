@@ -1,5 +1,9 @@
 package work.managerbe.workspace.mapper;
 
+import java.util.List;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.SliceImpl;
+import work.managerbe.workspace.dto.response.WorkspaceSliceResponse;
 import work.managerbe.user.domain.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -106,4 +110,23 @@ class WorkspaceMapperTest {
             assertThat(response).isNull();
         }
     }
+
+    /** 실제 MapStruct 구현체가 마지막 페이지의 내용과 페이지 메타데이터를 변환하는지 검증한다. */
+    @Test
+    void 마지막_Slice의_내용과_페이지_정보를_변환한다() {
+        // given
+        WorkspaceResponse item = new WorkspaceResponse(5L, 1L, "제목", "내용", null, null);
+        var slice = new SliceImpl<>(List.of(item), PageRequest.of(1, 10), false);
+
+        // when
+        WorkspaceSliceResponse response = mapper.toSliceResponse(slice);
+
+        // then
+        assertThat(response.content()).containsExactly(item);
+        assertThat(response.page()).isEqualTo(1);
+        assertThat(response.size()).isEqualTo(10);
+        assertThat(response.hasPrevious()).isTrue();
+        assertThat(response.hasNext()).isFalse();
+    }
+
 }
