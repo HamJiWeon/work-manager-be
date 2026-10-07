@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import work.managerbe.workspace.dto.request.WorkspaceCreateRequest;
+import work.managerbe.workspace.dto.request.WorkspaceUpdateRequest;
 import work.managerbe.workspace.dto.response.WorkspaceResponse;
 import work.managerbe.workspace.dto.response.WorkspaceSliceResponse;
 import work.managerbe.workspace.service.WorkspaceService;
@@ -50,5 +51,16 @@ public class WorkspaceController {
             @RequestParam(name = "page", defaultValue = "0") int page
     ) {
         return ResponseEntity.ok().body(workspaceService.getAll(userId, code, requesterId, page));
+    }
+
+    @PatchMapping("/{workspaceId}")
+    public ResponseEntity<WorkspaceResponse> update(
+            @PathVariable("userId") UUID userId,
+            @PathVariable("code") String code,
+            @PathVariable("workspaceId") Long workspaceId,
+            @AuthenticationPrincipal UUID requesterId,
+            @RequestBody WorkspaceUpdateRequest request
+    ) {
+        return ResponseEntity.ok().body(workspaceService.update(userId, code, workspaceId, requesterId, request));
     }
 }
