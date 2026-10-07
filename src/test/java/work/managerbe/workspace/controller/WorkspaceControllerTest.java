@@ -22,6 +22,8 @@ import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.global.exception.workspace.WorkspaceErrorCode;
 import work.managerbe.global.exception.workspace.WorkspaceException;
 import work.managerbe.workspace.dto.request.WorkspaceCreateRequest;
+import work.managerbe.workspace.dto.request.WorkspaceUpdateRequest;
+import org.junit.jupiter.params.provider.CsvSource;
 import work.managerbe.workspace.dto.response.WorkspaceResponse;
 import work.managerbe.workspace.service.WorkspaceService;
 
@@ -33,6 +35,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -213,4 +216,82 @@ class WorkspaceControllerTest {
         verifyNoInteractions(workspaceService);
     }
 
+
+    /** 생략한 필드와 명시한 null을 포함한 PATCH 본문이 DTO로 전달되는지 검증한다. */
+    @ParameterizedTest
+    @CsvSource(value = {
+            "'{\"title\":\"새 제목\",\"content\":\"새 내용\"}',새 제목,새 내용",
+            "'{\"title\":\"새 제목\"}',새 제목,NULL",
+            "'{\"content\":\"새 내용\"}',NULL,새 내용",
+            "'{\"title\":null,\"content\":null}',NULL,NULL",
+            "'{}',NULL,NULL",
+            "'{\"title\":\"\",\"content\":\"\"}','',''"
+    }, nullValues = "NULL")
+    void 수정_본문을_서비스에_전달하고_200을_반환한다(String body, String title, String content) throws Exception {
+        // given
+        authenticate(CREATOR_ID);
+        WorkspaceUpdateRequest request = new WorkspaceUpdateRequest(title, content);
+        LocalDateTime updatedAt = LocalDateTime.of(2026, 10, 7, 9, 0);
+        WorkspaceResponse response = new WorkspaceResponse(
+                WORKSPACE_ID, 1L, "응답 제목", "응답 내용", updatedAt, updatedAt);
+        when(workspaceService.update(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, CREATOR_ID, request))
+                .thenReturn(response);
+
+        // when / then
+        mockMvc.perform(patch("/{userId}/{code}/workspaces/{workspaceId}", CREATOR_ID, PROJECT_CODE, WORKSPACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(WORKSPACE_ID))
+                .andExpect(jsonPath("$.title").value("응답 제목"))
+                .andExpect(jsonPath("$.content").value("응답 내용"))
+                .andExpect(jsonPath("$.updatedAt").value("2026-10-07T09:00:00"));
+        verify(workspaceService).update(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, CREATOR_ID, request);
+    }
+
+    /** 빈 본문, JSON null 및 잘못된 JSON은 서비스 호출 전에 거부되는지 검증한다. */
+    @ParameterizedTest
+    @ValueSource(strings = {"", "null", "{"})
+    void 수정_본문이_유효하지_않으면_400을_반환한다(String body) throws Exception {
+        // given
+        authenticate(CREATOR_ID);
+
+        // when / then
+        mockMvc.perform(patch("/{userId}/{code}/workspaces/{workspaceId}", CREATOR_ID, PROJECT_CODE, WORKSPACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(workspaceService);
+    }
+
+    /** 권한 예외가 수정 API에서도 403으로 변환되는지 검증한다. */
+    @Test
+    void 수정_권한이_없으면_403을_반환한다() throws Exception {
+        // given
+        UUID requesterId = UUID.randomUUID();
+        authenticate(requesterId);
+        WorkspaceUpdateRequest request = new WorkspaceUpdateRequest("새 제목", null);
+        when(workspaceService.update(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, requesterId, request))
+                .thenThrow(CommonException.of(ErrorCode.FORBIDDEN));
+
+        // when / then
+        mockMvc.perform(patch("/{userId}/{code}/workspaces/{workspaceId}", CREATOR_ID, PROJECT_CODE, WORKSPACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    /** 수정 대상 조회 실패가 404로 변환되는지 검증한다. */
+    @Test
+    void 수정_대상이_없으면_404를_반환한다() throws Exception {
+        // given
+        authenticate(CREATOR_ID);
+        WorkspaceUpdateRequest request = new WorkspaceUpdateRequest("새 제목", null);
+        when(workspaceService.update(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, CREATOR_ID, request))
+                .thenThrow(WorkspaceException.of(WorkspaceErrorCode.WORKSPACE_NOT_FOUND));
+
+        // when / then
+        mockMvc.perform(patch("/{userId}/{code}/workspaces/{workspaceId}", CREATOR_ID, PROJECT_CODE, WORKSPACE_ID)
+                        .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("WORKSPACE_NOT_FOUND"));
+    }
 }

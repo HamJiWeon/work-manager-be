@@ -24,6 +24,11 @@ import work.managerbe.project.repository.ProjectRepository;
 import work.managerbe.user.repository.UserRepository;
 import work.managerbe.workspace.domain.Workspace;
 import work.managerbe.workspace.dto.request.WorkspaceCreateRequest;
+import work.managerbe.workspace.dto.request.WorkspaceUpdateRequest;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import work.managerbe.workspace.dto.response.WorkspaceResponse;
 import work.managerbe.workspace.mapper.WorkspaceMapper;
 import work.managerbe.workspace.repository.WorkspaceRepository;
@@ -257,4 +262,118 @@ class WorkspaceServiceImplTest {
         verifyNoInteractions(workspaceRepository, mapper);
     }
 
+
+    /** 실제 엔티티의 부분 수정 결과와 flush 후 응답 변환 순서를 검증한다. */
+    @ParameterizedTest
+    @CsvSource(value = {
+            "새 제목,새 내용,새 제목,새 내용",
+            "새 제목,NULL,새 제목,기존 내용",
+            "NULL,새 내용,기존 제목,새 내용",
+            "NULL,NULL,기존 제목,기존 내용",
+            "'','', '', ''"
+    }, nullValues = "NULL")
+    void 수정은_전달한_필드만_반영하고_응답을_반환한다(
+            String title, String content, String expectedTitle, String expectedContent) {
+        // given
+        Workspace workspace = Workspace.create(null, "기존 제목", "기존 내용");
+        WorkspaceUpdateRequest request = new WorkspaceUpdateRequest(title, content);
+        WorkspaceResponse expected = new WorkspaceResponse(
+                WORKSPACE_ID, 1L, expectedTitle, expectedContent, null, null);
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(workspaceRepository.findByProjectPath(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(workspace));
+        when(mapper.toResponse(workspace)).thenReturn(expected);
+
+        // when
+        WorkspaceResponse result = service.update(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, REQUESTER_ID, request);
+
+        // then
+        assertThat(workspace.getTitle()).isEqualTo(expectedTitle);
+        assertThat(workspace.getContent()).isEqualTo(expectedContent);
+        assertThat(result).isSameAs(expected);
+        var order = inOrder(workspaceRepository, mapper);
+        order.verify(workspaceRepository).findByProjectPath(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE);
+        order.verify(workspaceRepository).flush();
+        order.verify(mapper).toResponse(workspace);
+    }
+
+    /** 요청 객체 자체가 null이면 필드가 모두 null인 요청과 달리 거부하는지 검증한다. */
+    @Test
+    void 수정_요청_객체가_null이면_거부한다() {
+        // given
+        WorkspaceUpdateRequest request = null;
+
+        // when / then
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, REQUESTER_ID, request))
+                .isInstanceOfSatisfying(CommonException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST));
+        verifyNoInteractions(userRepository, workspaceRepository, mapper);
+    }
+
+    /** 다른 사용자는 워크스페이스 조회 전에 수정 권한 검사에서 차단되는지 검증한다. */
+    @Test
+    void 수정_요청자가_생성자가_아니면_거부한다() {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(userRepository.existsById(OTHER_USER_ID)).thenReturn(true);
+        WorkspaceUpdateRequest request = new WorkspaceUpdateRequest("새 제목", null);
+
+        // when / then
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, OTHER_USER_ID, request))
+                .isInstanceOfSatisfying(CommonException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        verifyNoInteractions(workspaceRepository, mapper);
+    }
+
+    /** 경로에 속한 워크스페이스가 없으면 flush와 응답 변환 없이 실패하는지 검증한다. */
+    @Test
+    void 수정할_워크스페이스가_프로젝트_경로에_없으면_거부한다() {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(workspaceRepository.findByProjectPath(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.empty());
+        WorkspaceUpdateRequest request = new WorkspaceUpdateRequest("새 제목", null);
+
+        // when / then
+        assertThatThrownBy(() -> service.update(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, REQUESTER_ID, request))
+                .isInstanceOfSatisfying(WorkspaceException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND));
+        verify(workspaceRepository, never()).flush();
+        verifyNoInteractions(mapper);
+    }
+
+    /** null과 빈 문자열 및 공백인 프로젝트 코드를 모두 거부하는지 검증한다. */
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = " ")
+    void 수정_프로젝트_코드가_유효하지_않으면_거부한다(String code) {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        WorkspaceUpdateRequest request = new WorkspaceUpdateRequest("새 제목", null);
+
+        // when / then
+        assertThatThrownBy(() -> service.update(CREATOR_ID, code, WORKSPACE_ID, REQUESTER_ID, request))
+                .isInstanceOfSatisfying(ProjectException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE));
+        verifyNoInteractions(workspaceRepository, mapper);
+    }
+
+    /** 존재하지 않는 생성자 또는 요청자가 저장소 수정에 도달하지 않는지 검증한다. */
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void 수정_사용자가_존재하지_않으면_거부한다(boolean missingCreator) {
+        // given
+        UUID creatorId = CREATOR_ID;
+        UUID requesterId = OTHER_USER_ID;
+        if (!missingCreator) {
+            when(userRepository.existsById(creatorId)).thenReturn(true);
+        }
+        WorkspaceUpdateRequest request = new WorkspaceUpdateRequest("새 제목", null);
+
+        // when / then
+        assertThatThrownBy(() -> service.update(creatorId, PROJECT_CODE, WORKSPACE_ID, requesterId, request))
+                .isInstanceOfSatisfying(UserException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+        verifyNoInteractions(workspaceRepository, mapper);
+    }
 }
