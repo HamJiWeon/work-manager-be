@@ -15,6 +15,8 @@ import work.managerbe.project.domain.QProject;
 @RequiredArgsConstructor
 public class ProjectRepositoryCustomImpl implements ProjectRepositoryCustom {
 
+    private static final long NEXT_SLICE_LOOKAHEAD = 1L;
+
     private final JPAQueryFactory queryFactory;
 
     @Override
@@ -36,7 +38,7 @@ public class ProjectRepositoryCustomImpl implements ProjectRepositoryCustom {
                         project.id.asc()
                 )
                 .offset(pageable.getOffset())
-                .limit(pageable.getPageSize() + 1L)
+                .limit(pageable.getPageSize() + NEXT_SLICE_LOOKAHEAD)
                 .fetch();
 
         boolean hasNext =
