@@ -263,7 +263,7 @@ class WorkspaceServiceImplTest {
     }
 
 
-    /** 실제 엔티티의 부분 수정 결과와 flush 후 응답 변환 순서를 검증한다. */
+    /** 잠금 조회로 얻은 엔티티의 부분 수정 결과와 flush 후 응답 변환 순서를 검증한다. */
     @ParameterizedTest
     @CsvSource(value = {
             "새 제목,새 내용,새 제목,새 내용",
@@ -280,7 +280,7 @@ class WorkspaceServiceImplTest {
         WorkspaceResponse expected = new WorkspaceResponse(
                 WORKSPACE_ID, 1L, expectedTitle, expectedContent, null, null);
         when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
-        when(workspaceRepository.findByProjectPath(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE))
+        when(workspaceRepository.findByProjectPathForUpdate(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE))
                 .thenReturn(Optional.of(workspace));
         when(mapper.toResponse(workspace)).thenReturn(expected);
 
@@ -292,7 +292,7 @@ class WorkspaceServiceImplTest {
         assertThat(workspace.getContent()).isEqualTo(expectedContent);
         assertThat(result).isSameAs(expected);
         var order = inOrder(workspaceRepository, mapper);
-        order.verify(workspaceRepository).findByProjectPath(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE);
+        order.verify(workspaceRepository).findByProjectPathForUpdate(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE);
         order.verify(workspaceRepository).flush();
         order.verify(mapper).toResponse(workspace);
     }
@@ -330,7 +330,7 @@ class WorkspaceServiceImplTest {
     void 수정할_워크스페이스가_프로젝트_경로에_없으면_거부한다() {
         // given
         when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
-        when(workspaceRepository.findByProjectPath(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE))
+        when(workspaceRepository.findByProjectPathForUpdate(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE))
                 .thenReturn(Optional.empty());
         WorkspaceUpdateRequest request = new WorkspaceUpdateRequest("새 제목", null);
 
