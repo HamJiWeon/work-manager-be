@@ -24,6 +24,9 @@ import work.managerbe.card.service.CardService;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import work.managerbe.global.exception.card.CardException;
+import work.managerbe.global.exception.card.CardErrorCode;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -86,6 +89,52 @@ class CardControllerTest {
                 .andExpect(jsonPath("$.createdAt").value("2026-09-11T09:00:00"))
                 .andExpect(jsonPath("$.updatedAt").value("2026-09-11T09:00:00"));
         verify(service).create(CREATOR, "TEST", 3L, REQUESTER, request);
+    }
+
+    /**
+     * 조회 응답의 전체 필드와 인증된 요청자의 서비스 전달을 검증한다.
+     */
+    @Test
+    void 카드_단건_조회는_200과_전체_필드를_반환한다() throws Exception {
+        // given
+        var start = LocalDate.of(2026, 9, 11);
+        var end = LocalDate.of(2026, 9, 15);
+        var now = LocalDateTime.of(2026, 9, 11, 9, 0);
+        when(service.get(CREATOR, "TEST", 3L, 101L, REQUESTER)).thenReturn(new CardResponse(
+                101L, "홍길동", "로그인 API 구현", "로그인 요청 및 응답을 구현한다.",
+                CardStatus.NOT_STARTED, 7L, 1L, 3L, start, end, now, now));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/3/cards/101", CREATOR))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(101))
+                .andExpect(jsonPath("$.username").value("홍길동"))
+                .andExpect(jsonPath("$.title").value("로그인 API 구현"))
+                .andExpect(jsonPath("$.content").value("로그인 요청 및 응답을 구현한다."))
+                .andExpect(jsonPath("$.status").value("NOT_STARTED"))
+                .andExpect(jsonPath("$.memberId").value(7))
+                .andExpect(jsonPath("$.projectId").value(1))
+                .andExpect(jsonPath("$.boardId").value(3))
+                .andExpect(jsonPath("$.startDate").value("2026-09-11"))
+                .andExpect(jsonPath("$.endDate").value("2026-09-15"))
+                .andExpect(jsonPath("$.createdAt").value("2026-09-11T09:00:00"))
+                .andExpect(jsonPath("$.updatedAt").value("2026-09-11T09:00:00"));
+        verify(service).get(CREATOR, "TEST", 3L, 101L, REQUESTER);
+    }
+
+    /**
+     * 카드 없음 예외가 명세의 404 오류 응답으로 변환되는지 검증한다.
+     */
+    @Test
+    void 카드가_없으면_404를_반환한다() throws Exception {
+        // given
+        when(service.get(CREATOR, "TEST", 3L, 101L, REQUESTER))
+                .thenThrow(CardException.of(CardErrorCode.CARD_NOT_FOUND));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/3/cards/101", CREATOR))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("CARD_NOT_FOUND"))
+                .andExpect(jsonPath("$.message").value("카드를 찾을 수 없습니다."))
+                .andExpect(jsonPath("$.details").isEmpty());
     }
 
     @ParameterizedTest

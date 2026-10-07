@@ -19,6 +19,18 @@ public class CardController {
     private final CardService cardService;
 
     /**
+     * 경로와 인증된 요청자를 서비스에 전달하고 단건 카드 정보를 반환한다.
+     */
+    @GetMapping("/{cardId}")
+    public ResponseEntity<CardResponse> get(
+            @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
+            @PathVariable("boardId") Long boardId, @PathVariable("cardId") Long cardId,
+            @AuthenticationPrincipal UUID requesterId
+    ) {
+        return ResponseEntity.ok(cardService.get(creatorId, code, boardId, cardId, requesterId));
+    }
+
+    /**
      * 경로와 인증된 요청자를 서비스에 전달하고 생성된 카드를 201로 반환한다.
      */
     @PostMapping
