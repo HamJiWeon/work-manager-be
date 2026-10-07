@@ -23,8 +23,12 @@ import work.managerbe.card.dto.response.CardResponse;
 import work.managerbe.card.service.CardService;
 
 import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import org.mockito.ArgumentCaptor;
+import work.managerbe.card.dto.request.CardUpdateRequest;
 import work.managerbe.global.exception.card.CardException;
 import work.managerbe.global.exception.card.CardErrorCode;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -67,7 +71,7 @@ class CardControllerTest {
                 CardStatus.NOT_STARTED, 7L, 1L, 3L, start, end);
         when(service.create(CREATOR, "TEST", 3L, REQUESTER, request)).thenReturn(new CardResponse(
                 101L, request.username(), request.title(), request.content(), request.status(),
-                7L, 1L, 3L, start, end, now, now));
+                7L, 1L, 3L, start, end, now, now, 0));
         // when / then
         mvc.perform(post("/{userId}/TEST/3/cards", CREATOR).contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -102,7 +106,7 @@ class CardControllerTest {
         var now = LocalDateTime.of(2026, 9, 11, 9, 0);
         when(service.get(CREATOR, "TEST", 3L, 101L, REQUESTER)).thenReturn(new CardResponse(
                 101L, "홍길동", "로그인 API 구현", "로그인 요청 및 응답을 구현한다.",
-                CardStatus.NOT_STARTED, 7L, 1L, 3L, start, end, now, now));
+                CardStatus.NOT_STARTED, 7L, 1L, 3L, start, end, now, now, 0));
         // when / then
         mvc.perform(get("/{userId}/TEST/3/cards/101", CREATOR))
                 .andExpect(status().isOk())
@@ -147,4 +151,46 @@ class CardControllerTest {
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(service);
     }
+    @Test
+    void 수정_API는_상태와_위치를_전달하고_날짜_null과_생략을_구분한다() throws Exception {
+        // given
+        var now = LocalDateTime.of(2026, 9, 11, 9, 0);
+        when(service.update(eq(CREATOR), eq("TEST"), eq(3L), eq(101L), eq(REQUESTER), any()))
+                .thenReturn(new CardResponse(101L, "담당자", "제목", "내용", CardStatus.DONE,
+                        7L, 1L, 3L, null, null, now, now, 2));
+        // when / then
+        mvc.perform(patch("/{userId}/TEST/3/cards/101", CREATOR).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"DONE\",\"sortOrder\":2,\"endDate\":null}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DONE"))
+                .andExpect(jsonPath("$.sortOrder").value(2));
+        var request = ArgumentCaptor.forClass(CardUpdateRequest.class);
+        verify(service).update(eq(CREATOR), eq("TEST"), eq(3L), eq(101L), eq(REQUESTER), request.capture());
+        assertThat(request.getValue().isEndDateProvided()).isTrue();
+        assertThat(request.getValue().isStartDateProvided()).isFalse();
+    }
+
+    @Test
+    void 수정_API는_잘못된_상태를_거절한다() throws Exception {
+        // given / when / then
+        mvc.perform(patch("/{userId}/TEST/3/cards/101", CREATOR).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"UNKNOWN\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+
+    /** 서비스의 수정 검증 오류를 공개 JSON 오류 응답으로 변환한다. */
+    @Test
+    void 잘못된_수정_요청의_오류_코드와_메시지를_반환한다() throws Exception {
+        // given
+        when(service.update(eq(CREATOR), eq("TEST"), eq(3L), eq(101L), eq(REQUESTER), any()))
+                .thenThrow(CardException.of(CardErrorCode.CARD_INVALID_UPDATE));
+        // when / then
+        mvc.perform(patch("/{userId}/TEST/3/cards/101", CREATOR)
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CARD_INVALID_UPDATE"))
+                .andExpect(jsonPath("$.message").value("카드 수정 요청이 유효하지 않습니다."));
+    }
+
 }

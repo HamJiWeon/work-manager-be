@@ -21,7 +21,8 @@ public record CardResponse(
         LocalDate startDate,
         LocalDate endDate,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        int sortOrder
 ) {
     /**
      * 카드 엔티티를 응답으로 변환하고 연관 엔티티는 ID로 표현한다.
@@ -39,7 +40,8 @@ public record CardResponse(
                 card.getStartDate(),
                 card.getEndDate(),
                 card.getCreatedAt(),
-                card.getUpdatedAt()
+                card.getUpdatedAt(),
+                card.getSortOrder()
         );
     }
 }

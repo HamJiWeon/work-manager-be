@@ -3,6 +3,9 @@ package work.managerbe.card.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import jakarta.persistence.EntityManager;
+import tools.jackson.databind.ObjectMapper;
+import work.managerbe.card.dto.request.CardUpdateRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.repository.BoardRepository;
 import work.managerbe.card.domain.CardStatus;
+import work.managerbe.card.domain.Card;
 import work.managerbe.card.dto.request.CardCreateRequest;
 import work.managerbe.card.dto.response.CardResponse;
 import work.managerbe.card.repository.CardRepository;
@@ -42,6 +46,8 @@ import static org.assertj.core.api.Assertions.*;
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:card-create-test;DB_CLOSE_DELAY=-1")
 @Transactional
 class CardServiceIntegrationTest {
+    private final EntityManager entityManager;
+    private final ObjectMapper mapper;
     private final CardService service;
     private final UserRepository users;
     private final ProjectRepository projects;
@@ -56,7 +62,9 @@ class CardServiceIntegrationTest {
 
     @Autowired
     CardServiceIntegrationTest(CardService service, UserRepository users, ProjectRepository projects,
-                               BoardRepository boards, MemberRepository members, CardRepository cards) {
+                               BoardRepository boards, MemberRepository members, CardRepository cards, EntityManager entityManager, ObjectMapper mapper) {
+        this.entityManager = entityManager;
+        this.mapper = mapper;
         this.service = service;
         this.users = users;
         this.projects = projects;
@@ -317,6 +325,185 @@ class CardServiceIntegrationTest {
                 saved.id(), requester.getId()))
                 .isInstanceOfSatisfying(ProjectException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
+    }
+
+
+    @Test
+    void 같은_상태_순서를_바꾸고_다시_조회해도_유지한다() {
+        // given
+        var first = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var second = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var third = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        // when
+        var response = update(third.id(), "{\"sortOrder\":0}");
+        entityManager.flush();
+        entityManager.clear();
+        // then
+        assertThat(response.sortOrder()).isZero();
+        assertThat(cards.findAllByBoardIdAndStatus(board.getId(), CardStatus.IN_PROGRESS))
+                .extracting(Card::getId).containsExactly(third.id(), first.id(), second.id());
+        assertThat(cards.findAllByBoardIdAndStatus(board.getId(), CardStatus.IN_PROGRESS))
+                .extracting(Card::getSortOrder).containsExactly(0, 1, 2);
+    }
+
+    @Test
+    void 상태_변경과_대상_위치를_함께_저장하고_원래_목록을_정리한다() {
+        // given
+        var first = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var second = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var third = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        update(second.id(), "{\"status\":\"DONE\"}");
+        // when
+        var response = update(first.id(), "{\"status\":\"DONE\",\"sortOrder\":0}");
+        entityManager.clear();
+        // then
+        assertThat(response.status()).isEqualTo(CardStatus.DONE);
+        assertThat(cards.findAllByBoardIdAndStatus(board.getId(), CardStatus.IN_PROGRESS))
+                .extracting(Card::getId).containsExactly(third.id());
+        assertThat(cards.findById(third.id()).orElseThrow().getSortOrder()).isZero();
+        assertThat(cards.findAllByBoardIdAndStatus(board.getId(), CardStatus.DONE))
+                .extracting(Card::getId).containsExactly(first.id(), second.id());
+    }
+
+    @Test
+    void 제목만_수정하면_상태_순서_날짜를_유지하고_명시한_null은_날짜를_삭제한다() {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(),
+                LocalDate.of(2026, 9, 11), LocalDate.of(2026, 9, 15)), requester.getId());
+        // when
+        var renamed = update(saved.id(), "{\"title\":\"새 제목\",\"content\":\"\"}");
+        // then
+        assertThat(renamed.title()).isEqualTo("새 제목");
+        assertThat(renamed.content()).isEmpty();
+        assertThat(renamed.endDate()).isEqualTo(saved.endDate());
+        assertThat(renamed.status()).isEqualTo(saved.status());
+        // when
+        var cleared = update(saved.id(), "{\"endDate\":null,\"startDate\":null}");
+        // then
+        assertThat(cleared.startDate()).isNull();
+        assertThat(cleared.endDate()).isNull();
+    }
+
+    @Test
+    void 같은_프로젝트의_다른_보드로_이동한다() {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var target = boards.save(Board.create("대상 보드", project));
+        // when
+        var moved = update(saved.id(), "{\"boardId\":" + target.getId() + "}");
+        entityManager.clear();
+        // then
+        assertThat(moved.boardId()).isEqualTo(target.getId());
+        assertThat(cards.findAllByBoardIdAndStatus(board.getId(), saved.status())).isEmpty();
+        assertThat(service.get(creator.getId(), project.getCode(), target.getId(), saved.id(), requester.getId()).sortOrder()).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"title\":\" \"}", "{\"sortOrder\":-1}", "{\"boardId\":0}", "{\"sortOrder\":2}", "{\"endDate\":\"2026-09-01\"}"})
+    void 잘못된_수정이나_위치_일정을_거절한다(String json) {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(),
+                LocalDate.of(2026, 9, 11), null), requester.getId());
+        // when / then
+        assertThatThrownBy(() -> update(saved.id(), json)).isInstanceOfSatisfying(CardException.class,
+                error -> assertThat(error.getErrorCode()).isEqualTo(CardErrorCode.CARD_INVALID_UPDATE));
+        assertThat(cards.findById(saved.id()).orElseThrow().getStatus()).isEqualTo(saved.status());
+    }
+
+    @Test
+    void 다른_프로젝트_보드로_이동하거나_외부인이_수정할_수_없다() {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var other = projects.save(Project.create(creator, "OTHER", "다른 프로젝트", null));
+        var target = boards.save(Board.create("외부 보드", other));
+        var outsider = users.save(User.create("외부인", "outsider-update@test.com", null));
+        // when / then
+        assertThatThrownBy(() -> update(saved.id(), "{\"boardId\":" + target.getId() + "}"))
+                .isInstanceOf(BoardException.class);
+        assertThatThrownBy(() -> service.update(creator.getId(), project.getCode(), board.getId(), saved.id(),
+                outsider.getId(), mapper.readValue("{\"status\":\"DONE\"}", CardUpdateRequest.class)))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void 존재하지_않거나_경로가_다른_카드와_누락된_요청자를_거절한다() {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var patch = mapper.readValue("{\"status\":\"DONE\"}", CardUpdateRequest.class);
+        // when / then
+        assertThatThrownBy(() -> service.update(creator.getId(), project.getCode(), board.getId(), saved.id(), requester.getId(), null)).isInstanceOf(CardException.class);
+        assertThatThrownBy(() -> service.update(creator.getId(), project.getCode(), board.getId(), saved.id(), null, patch)).isInstanceOf(UserException.class);
+        assertThatThrownBy(() -> service.update(creator.getId(), project.getCode(), board.getId(), saved.id(), UUID.randomUUID(), patch)).isInstanceOf(UserException.class);
+        assertThatThrownBy(() -> service.update(creator.getId(), project.getCode(), null, saved.id(), requester.getId(), patch)).isInstanceOf(CardException.class);
+        assertThatThrownBy(() -> service.update(creator.getId(), project.getCode(), board.getId(), null, requester.getId(), patch)).isInstanceOf(CardException.class);
+        assertThatThrownBy(() -> update(Long.MAX_VALUE, "{\"status\":\"DONE\"}")).isInstanceOf(CardException.class);
+        assertThatThrownBy(() -> service.update(creator.getId(), "MISSING", board.getId(), saved.id(), requester.getId(), patch)).isInstanceOf(ProjectException.class);
+    }
+
+    /** 뒤로 이동할 때 영향 구간만 당기고 같은 트랜잭션의 조회에도 최신 순서를 반환한다. */
+    @Test
+    void 같은_목록에서_뒤로_이동하면_구간만_당기고_즉시_조회에_반영한다() {
+        // given
+        var first = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var second = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var third = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var fourth = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        cards.findAllByBoardIdAndStatus(board.getId(), CardStatus.IN_PROGRESS);
+        // when
+        var response = update(second.id(), "{\"sortOrder\":2,\"title\":\"이동한 제목\"}");
+        // then
+        assertThat(response.sortOrder()).isEqualTo(2);
+        assertThat(response.title()).isEqualTo("이동한 제목");
+        assertThat(cards.findAllByBoardIdAndStatus(board.getId(), CardStatus.IN_PROGRESS))
+                .extracting(Card::getId).containsExactly(first.id(), third.id(), second.id(), fourth.id());
+        assertThat(cards.findAllByBoardIdAndStatus(board.getId(), CardStatus.IN_PROGRESS))
+                .extracting(Card::getSortOrder).containsExactly(0, 1, 2, 3);
+    }
+
+    /** 연속 이동에서도 벌크 갱신 이전 엔티티의 위치를 재사용하지 않는다. */
+    @Test
+    void 연속_이동은_최신_위치를_사용하고_동일_위치_요청은_유지한다() {
+        // given
+        var first = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var second = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var third = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        // when
+        update(third.id(), "{\"sortOrder\":0}");
+        update(first.id(), "{\"sortOrder\":2}");
+        update(second.id(), "{\"sortOrder\":1}");
+        // then
+        assertThat(cards.findAllByBoardIdAndStatus(board.getId(), CardStatus.IN_PROGRESS))
+                .extracting(Card::getId).containsExactly(third.id(), second.id(), first.id());
+        assertThat(cards.findAllByBoardIdAndStatus(board.getId(), CardStatus.IN_PROGRESS))
+                .extracting(Card::getSortOrder).containsExactly(0, 1, 2);
+    }
+
+    /** 다른 보드의 중간 삽입은 양쪽 목록의 위치를 연속되게 정리한다. */
+    @Test
+    void 다른_보드의_중간에_삽입하면_양쪽_순서를_수정한다() {
+        // given
+        var moving = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var remaining = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        Board target = boards.save(Board.create("대상 보드", project));
+        var targetFirst = service.create(creator.getId(), project.getCode(), target.getId(), requester.getId(),
+                request(project.getId(), target.getId(), assignee.getId(), null, null));
+        var targetSecond = service.create(creator.getId(), project.getCode(), target.getId(), requester.getId(),
+                request(project.getId(), target.getId(), assignee.getId(), null, null));
+        // when
+        var response = update(moving.id(), "{\"boardId\":" + target.getId() + ",\"sortOrder\":1}");
+        // then
+        assertThat(response.boardId()).isEqualTo(target.getId());
+        assertThat(response.sortOrder()).isEqualTo(1);
+        assertThat(cards.findById(remaining.id()).orElseThrow().getSortOrder()).isZero();
+        assertThat(cards.findAllByBoardIdAndStatus(target.getId(), CardStatus.IN_PROGRESS))
+                .extracting(Card::getId).containsExactly(targetFirst.id(), moving.id(), targetSecond.id());
+        assertThat(cards.findAllByBoardIdAndStatus(target.getId(), CardStatus.IN_PROGRESS))
+                .extracting(Card::getSortOrder).containsExactly(0, 1, 2);
+    }
+
+    private CardResponse update(Long cardId, String json) {
+        return service.update(creator.getId(), project.getCode(), board.getId(), cardId, requester.getId(),
+                mapper.readValue(json, CardUpdateRequest.class));
     }
 
     private CardResponse create(CardCreateRequest request, UUID requesterId) {

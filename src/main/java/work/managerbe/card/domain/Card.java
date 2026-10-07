@@ -44,6 +44,9 @@ public class Card extends BaseEntity {
     @JoinColumn(name = "board_id")
     private Board board;
 
+    @Column(nullable = false)
+    private int sortOrder;
+
     private LocalDate startDate;
 
     private LocalDate endDate;
@@ -74,4 +77,24 @@ public class Card extends BaseEntity {
         return new Card(user, username, title, content, status,
                 member, project, board, startDate, endDate);
     }
+    /** 같은 프로젝트 안에서 보드와 상태, 목록의 위치를 함께 갱신한다. */
+    public void move(Board targetBoard, CardStatus targetStatus, int position) {
+
+        if (targetBoard.getProject() != project || position < 0) {
+            throw new IllegalArgumentException("카드 이동 대상이 유효하지 않습니다.");
+        }
+
+        board = targetBoard;
+        status = targetStatus;
+        sortOrder = position;
+    }
+
+    /** 전달된 내용과 최종 일정을 반영한다. 날짜의 생략 여부는 서비스에서 처리한다. */
+    public void update(String title, String content, LocalDate startDate, LocalDate endDate) {
+        if (title != null) this.title = title;
+        if (content != null) this.content = content;
+        this.startDate = startDate;
+        this.endDate = endDate;
+    }
+
 }

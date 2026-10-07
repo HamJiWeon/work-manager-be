@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import work.managerbe.card.dto.request.CardCreateRequest;
+import work.managerbe.card.dto.request.CardUpdateRequest;
 import work.managerbe.card.dto.response.CardResponse;
 import work.managerbe.card.service.CardService;
 import work.managerbe.global.constant.ApiPaths;
@@ -42,4 +43,14 @@ public class CardController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(cardService.create(creatorId, code, boardId, requesterId, request));
     }
+    /** 현재 보드 경로의 카드를 부분 수정하며 상태와 순서를 함께 저장한다. */
+    @PatchMapping("/{cardId}")
+    public ResponseEntity<CardResponse> update(
+            @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
+            @PathVariable("boardId") Long boardId, @PathVariable("cardId") Long cardId,
+            @AuthenticationPrincipal UUID requesterId, @RequestBody CardUpdateRequest request
+    ) {
+        return ResponseEntity.ok(cardService.update(creatorId, code, boardId, cardId, requesterId, request));
+    }
+
 }

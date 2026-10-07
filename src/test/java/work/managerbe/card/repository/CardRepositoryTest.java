@@ -141,4 +141,69 @@ class CardRepositoryTest {
         assertThat(entityManager.find(Project.class, project.getId())).isNotNull();
         assertThat(entityManager.find(Board.class, board.getId())).isNotNull();
     }
+
+    /** 보드·상태로 조회 범위를 제한하고 위치가 같으면 ID순으로 반환한다. */
+    @Test
+    void 상태별_카드를_위치와_ID순으로_조회하고_개수를_센다() {
+        // given
+        Card first = Card.create(user, USERNAME, TITLE, CONTENT, CardStatus.IN_PROGRESS,
+                member, project, board, null, null);
+        Card second = Card.create(user, USERNAME, TITLE, CONTENT, CardStatus.IN_PROGRESS,
+                member, project, board, null, null);
+        Card third = Card.create(user, USERNAME, TITLE, CONTENT, CardStatus.IN_PROGRESS,
+                member, project, board, null, null);
+        first.move(board, CardStatus.IN_PROGRESS, 1);
+        second.move(board, CardStatus.IN_PROGRESS, 0);
+        third.move(board, CardStatus.IN_PROGRESS, 1);
+        entityManager.persist(first);
+        entityManager.persist(second);
+        entityManager.persist(third);
+        Board otherBoard = Board.create("다른 보드", project);
+        entityManager.persist(otherBoard);
+        entityManager.persist(Card.create(user, USERNAME, TITLE, CONTENT, CardStatus.IN_PROGRESS,
+                member, project, otherBoard, null, null));
+        entityManager.flush();
+        Long boardId = board.getId();
+        entityManager.clear();
+        // when
+        var result = cardRepository.findAllByBoardIdAndStatus(
+                boardId, CardStatus.IN_PROGRESS);
+        // then
+        assertThat(result).extracting(Card::getId).containsExactly(second.getId(), first.getId(), third.getId());
+        assertThat(cardRepository.countByBoard_IdAndStatus(boardId, CardStatus.IN_PROGRESS)).isEqualTo(3);
+        assertThat(cardRepository.findAllByBoardIdAndStatus(boardId, CardStatus.DONE)).isEmpty();
+        assertThat(cardRepository.countByBoard_IdAndStatus(boardId, CardStatus.DONE)).isZero();
+    }
+
+    /** 벌크 갱신은 대상 구간의 다른 카드만 변경하고 지정 감사 시각을 저장한다. */
+    @Test
+    void 구간_벌크_갱신은_제외_카드와_다른_상태를_보존한다() {
+        // given
+        Card excluded = Card.create(user, USERNAME, TITLE, CONTENT, CardStatus.IN_PROGRESS,
+                member, project, board, null, null);
+        Card shifted = Card.create(user, USERNAME, TITLE, CONTENT, CardStatus.IN_PROGRESS,
+                member, project, board, null, null);
+        Card outside = Card.create(user, USERNAME, TITLE, CONTENT, CardStatus.IN_PROGRESS,
+                member, project, board, null, null);
+        shifted.move(board, CardStatus.IN_PROGRESS, 1);
+        outside.move(board, CardStatus.IN_PROGRESS, 2);
+        entityManager.persist(excluded);
+        entityManager.persist(shifted);
+        entityManager.persist(outside);
+        entityManager.flush();
+        var updatedAt = java.time.LocalDateTime.of(2026, 10, 7, 12, 0);
+        // when
+        int affected = cardRepository.shiftOrder(board.getId(), CardStatus.IN_PROGRESS,
+                excluded.getId(), 0, 1, 1, updatedAt);
+        entityManager.clear();
+        // then
+        assertThat(affected).isEqualTo(1);
+        assertThat(cardRepository.findById(excluded.getId()).orElseThrow().getSortOrder()).isZero();
+        Card reloaded = cardRepository.findById(shifted.getId()).orElseThrow();
+        assertThat(reloaded.getSortOrder()).isEqualTo(2);
+        assertThat(reloaded.getUpdatedAt()).isEqualTo(updatedAt);
+        assertThat(cardRepository.findById(outside.getId()).orElseThrow().getSortOrder()).isEqualTo(2);
+        assertThat(cardRepository.findById(CARD_ID).orElseThrow().getSortOrder()).isZero();
+    }
+
 }
