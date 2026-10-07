@@ -57,6 +57,7 @@ public class WorkspaceServiceImpl implements WorkspaceService{
     }
 
     @Override
+    @Transactional(readOnly = true)
     public WorkspaceResponse get(UUID userId, String code, Long workspaceId, UUID requesterId) {
         userIdValidation(userId);
         userIdValidation(requesterId);
@@ -69,6 +70,7 @@ public class WorkspaceServiceImpl implements WorkspaceService{
     }
 
     @Override
+    @Transactional(readOnly = true)
     public WorkspaceSliceResponse getAll(UUID userId, String code, UUID requesterId, int page) {
         userIdValidation(userId);
         userIdValidation(requesterId);
