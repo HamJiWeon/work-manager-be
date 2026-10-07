@@ -8,7 +8,7 @@ import work.managerbe.workspace.domain.Workspace;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface WorkspaceRepository extends JpaRepository<Workspace, Long> {
+public interface WorkspaceRepository extends JpaRepository<Workspace, Long>, WorkspaceRepositoryCustom {
 
     @Query("""
         select w
