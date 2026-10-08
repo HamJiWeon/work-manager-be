@@ -108,6 +108,18 @@ public class WorkspaceServiceImpl implements WorkspaceService{
         return mapper.toResponse(workspace);
     }
 
+    @Override
+    public void delete(UUID userId, String code, Long workspaceId, UUID requesterId) {
+        userIdValidation(userId);
+        userIdValidation(requesterId);
+        projectCodeValidation(code);
+        projectCreatorPermissionValidation(userId, requesterId);
+
+        Workspace workspace = workspaceRepository.findByProjectPathForUpdate(workspaceId, userId, code)
+                .orElseThrow(() -> WorkspaceException.of(WorkspaceErrorCode.WORKSPACE_NOT_FOUND));
+        workspaceRepository.delete(workspace);
+    }
+
     private static void projectCreatorPermissionValidation(UUID creatorId, UUID requesterId) {
         if (!creatorId.equals(requesterId)) {
             throw CommonException.of(ErrorCode.FORBIDDEN);

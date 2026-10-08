@@ -16,4 +16,6 @@ public interface WorkspaceService {
     WorkspaceSliceResponse getAll(UUID userId, String code, UUID requesterId, int page);
 
     WorkspaceResponse update(UUID userId, String code, Long workspaceId, UUID requesterId, WorkspaceUpdateRequest request);
+
+    void delete(UUID userId, String code, Long workspaceId, UUID requesterId);
 }
