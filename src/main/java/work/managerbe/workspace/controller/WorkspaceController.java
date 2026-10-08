@@ -63,4 +63,15 @@ public class WorkspaceController {
     ) {
         return ResponseEntity.ok().body(workspaceService.update(userId, code, workspaceId, requesterId, request));
     }
+
+    @DeleteMapping("/{workspaceId}")
+    public ResponseEntity<Void> delete(
+            @PathVariable("userId") UUID userId,
+            @PathVariable("code") String code,
+            @PathVariable("workspaceId") Long workspaceId,
+            @AuthenticationPrincipal UUID requesterId
+    ) {
+        workspaceService.delete(userId, code, workspaceId, requesterId);
+        return ResponseEntity.noContent().build();
+    }
 }
