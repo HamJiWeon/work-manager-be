@@ -19,6 +19,7 @@ import work.managerbe.project.repository.ProjectRepository;
 import work.managerbe.user.repository.UserRepository;
 import work.managerbe.workspace.domain.Workspace;
 import work.managerbe.workspace.dto.request.WorkspaceCreateRequest;
+import work.managerbe.workspace.dto.request.WorkspaceUpdateRequest;
 import work.managerbe.workspace.dto.response.WorkspaceResponse;
 import work.managerbe.workspace.dto.response.WorkspaceSliceResponse;
 import work.managerbe.workspace.mapper.WorkspaceMapper;
@@ -87,6 +88,24 @@ public class WorkspaceServiceImpl implements WorkspaceService{
                 .map(mapper::toResponse);
 
         return mapper.toSliceResponse(workspaces);
+    }
+
+    @Override
+    public WorkspaceResponse update(UUID userId, String code, Long workspaceId, UUID requesterId, WorkspaceUpdateRequest request) {
+        if(request == null) {
+            throw CommonException.of(ErrorCode.INVALID_REQUEST);
+        }
+        userIdValidation(userId);
+        userIdValidation(requesterId);
+        projectCodeValidation(code);
+        projectCreatorPermissionValidation(userId, requesterId);
+
+        Workspace workspace = workspaceRepository.findByProjectPathForUpdate(workspaceId, userId, code)
+                .orElseThrow(() -> WorkspaceException.of(WorkspaceErrorCode.WORKSPACE_NOT_FOUND));
+
+        workspace.update(request.title(), request.content());
+        workspaceRepository.flush();
+        return mapper.toResponse(workspace);
     }
 
     private static void projectCreatorPermissionValidation(UUID creatorId, UUID requesterId) {

@@ -36,4 +36,13 @@ public class Workspace extends BaseEntity {
                 .content(content)
                 .build();
     }
+
+    public void update(String title, String content) {
+        if(title != null) {
+            this.title = title;
+        }
+        if(content != null) {
+            this.content = content;
+        }
+    }
 }
