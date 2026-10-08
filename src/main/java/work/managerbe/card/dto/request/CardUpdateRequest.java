@@ -1,24 +1,24 @@
 package work.managerbe.card.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import java.time.LocalDate;
 import lombok.Getter;
 import work.managerbe.card.domain.CardStatus;
 
-/** 생략한 필드는 유지하고 명시한 날짜 null은 삭제하는 부분 수정 요청이다. 순서는 대상 상태 목록의 0 기반 위치다. */
+/** 생략한 필드는 유지하고 명시한 null은 날짜 삭제에만 허용한다. 순서는 대상 상태 목록의 0 기반 위치다. */
 @Getter
 public class CardUpdateRequest {
-    @JsonProperty private String title;
+    @JsonSetter(nulls = Nulls.FAIL) private String title;
 
-    @JsonProperty private String content;
+    @JsonSetter(nulls = Nulls.FAIL) private String content;
 
-    @JsonProperty private Long boardId;
+    @JsonSetter(nulls = Nulls.FAIL) private Long boardId;
 
-    @JsonProperty private CardStatus status;
+    @JsonSetter(nulls = Nulls.FAIL) private CardStatus status;
 
-    @JsonProperty private Integer sortOrder;
+    @JsonSetter(nulls = Nulls.FAIL) private Integer sortOrder;
 
     private LocalDate startDate;
 

@@ -7,6 +7,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import work.managerbe.card.dto.request.CardUpdateRequest;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import tools.jackson.databind.exc.InvalidNullException;
 
 /** 실제 JSON 역직렬화로 부분 수정의 입력 검증과 날짜 생략·삭제 구분을 확인한다. */
 class CardUpdateRequestTest {
@@ -15,7 +17,7 @@ class CardUpdateRequestTest {
     /** 빈 요청과 필드의 잘못된 경계값은 거절한다. */
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"title\":\" \"}", "{\"sortOrder\":-1}",
-            "{\"boardId\":0}", "{\"boardId\":-1}", "{\"title\":null}"})
+            "{\"boardId\":0}", "{\"boardId\":-1}"})
     void 유효하지_않은_입력을_거절한다(String json) throws Exception {
         // given
         CardUpdateRequest request = MAPPER.readValue(json, CardUpdateRequest.class);
@@ -32,6 +34,17 @@ class CardUpdateRequestTest {
         CardUpdateRequest request = MAPPER.readValue(json, CardUpdateRequest.class);
         // when / then
         assertThat(request.isValid()).isTrue();
+    }
+
+    /** 다른 유효한 수정 필드가 있어도 비날짜 필드의 명시적 null은 역직렬화에서 거절한다. */
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"title\":null}", "{\"title\":null,\"status\":\"DONE\"}",
+            "{\"content\":null,\"status\":\"DONE\"}", "{\"boardId\":null,\"status\":\"DONE\"}",
+            "{\"sortOrder\":null,\"status\":\"DONE\"}", "{\"status\":null,\"title\":\"제목\"}"})
+    void 비날짜_필드의_명시적_null을_거절한다(String json) {
+        // given / when / then
+        assertThatThrownBy(() -> MAPPER.readValue(json, CardUpdateRequest.class))
+                .isInstanceOf(InvalidNullException.class);
     }
 
     /** 생략과 명시적 null을 구분하고 날짜 문자열을 날짜 값으로 읽는다. */

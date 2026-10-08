@@ -179,6 +179,19 @@ class CardControllerTest {
     }
 
 
+    /** 비날짜 필드의 명시적 null을 서비스 호출 이전에 400으로 반환한다. */
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"title\":null,\"status\":\"DONE\"}",
+            "{\"content\":null,\"status\":\"DONE\"}", "{\"boardId\":null,\"status\":\"DONE\"}",
+            "{\"sortOrder\":null,\"status\":\"DONE\"}", "{\"status\":null,\"title\":\"제목\"}"})
+    void 수정_API는_비날짜_필드의_null을_거절한다(String body) throws Exception {
+        // given / when / then
+        mvc.perform(patch("/{userId}/TEST/3/cards/101", CREATOR)
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
     /** 서비스의 수정 검증 오류를 공개 JSON 오류 응답으로 변환한다. */
     @Test
     void 잘못된_수정_요청의_오류_코드와_메시지를_반환한다() throws Exception {
