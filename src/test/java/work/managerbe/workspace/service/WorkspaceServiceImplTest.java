@@ -376,4 +376,93 @@ class WorkspaceServiceImplTest {
                         exception -> assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
         verifyNoInteractions(workspaceRepository, mapper);
     }
+
+    /** 생성자의 삭제 요청은 경로로 잠금 조회한 대상만 삭제한다. */
+    @Test
+    void 삭제는_프로젝트_경로로_잠금_조회한_워크스페이스를_삭제한다() {
+        // given
+        Workspace workspace = Workspace.create(null, "제목", "내용");
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(workspaceRepository.findByProjectPathForUpdate(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(workspace));
+
+        // when
+        service.delete(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, REQUESTER_ID);
+
+        // then
+        verify(workspaceRepository).delete(workspace);
+        verifyNoInteractions(projectRepository, mapper);
+    }
+
+    /** 비소유자의 삭제 요청이 데이터 조회 전에 차단되는지 검증한다. */
+    @Test
+    void 삭제_요청자가_생성자가_아니면_거부한다() {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(userRepository.existsById(OTHER_USER_ID)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, OTHER_USER_ID))
+                .isInstanceOfSatisfying(CommonException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        verifyNoInteractions(workspaceRepository, projectRepository, mapper);
+    }
+
+    /** 경로에 대상이 없으면 삭제를 실행하지 않는지 검증한다. */
+    @Test
+    void 삭제_대상이_프로젝트_경로에_없으면_거부한다() {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(workspaceRepository.findByProjectPathForUpdate(WORKSPACE_ID, CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.empty());
+
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, REQUESTER_ID))
+                .isInstanceOfSatisfying(WorkspaceException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(WorkspaceErrorCode.WORKSPACE_NOT_FOUND));
+        verify(workspaceRepository, never()).delete(any(Workspace.class));
+    }
+
+    /** null과 빈 문자열 및 공백 코드는 삭제 조회 전에 거부한다. */
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = " ")
+    void 삭제_프로젝트_코드가_유효하지_않으면_거부한다(String code) {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, code, WORKSPACE_ID, REQUESTER_ID))
+                .isInstanceOfSatisfying(ProjectException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_INVALID_CODE));
+        verifyNoInteractions(workspaceRepository);
+    }
+
+    /** 존재하지 않는 생성자와 요청자의 삭제 요청을 각각 거부한다. */
+    @Test
+    void 삭제_생성자가_존재하지_않으면_거부한다() {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(false);
+
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, REQUESTER_ID))
+                .isInstanceOfSatisfying(UserException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+        verifyNoInteractions(workspaceRepository);
+    }
+
+    /** 생성자가 존재해도 요청자가 없으면 삭제를 실행하지 않는다. */
+    @Test
+    void 삭제_요청자가_존재하지_않으면_거부한다() {
+        // given
+        when(userRepository.existsById(CREATOR_ID)).thenReturn(true);
+        when(userRepository.existsById(OTHER_USER_ID)).thenReturn(false);
+
+        // when / then
+        assertThatThrownBy(() -> service.delete(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, OTHER_USER_ID))
+                .isInstanceOfSatisfying(UserException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+        verifyNoInteractions(workspaceRepository);
+    }
+
 }

@@ -30,13 +30,16 @@ import work.managerbe.workspace.service.WorkspaceService;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -294,4 +297,60 @@ class WorkspaceControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("WORKSPACE_NOT_FOUND"));
     }
+
+    /** 경로와 인증 주체를 전달하고 본문 없는 204를 반환한다. */
+    @Test
+    void 삭제_성공시_본문_없는_204를_반환한다() throws Exception {
+        // given
+        authenticate(CREATOR_ID);
+
+        // when / then
+        mockMvc.perform(delete("/{userId}/{code}/workspaces/{workspaceId}", CREATOR_ID, PROJECT_CODE, WORKSPACE_ID))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+        verify(workspaceService).delete(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, CREATOR_ID);
+    }
+
+    /** 삭제 권한 예외를 403 응답으로 변환한다. */
+    @Test
+    void 삭제_권한이_없으면_403을_반환한다() throws Exception {
+        // given
+        UUID requesterId = UUID.randomUUID();
+        authenticate(requesterId);
+        doThrow(CommonException.of(ErrorCode.FORBIDDEN)).when(workspaceService)
+                .delete(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, requesterId);
+
+        // when / then
+        mockMvc.perform(delete("/{userId}/{code}/workspaces/{workspaceId}", CREATOR_ID, PROJECT_CODE, WORKSPACE_ID))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        verify(workspaceService).delete(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, requesterId);
+    }
+
+    /** 삭제 대상 조회 실패를 404 응답으로 변환한다. */
+    @Test
+    void 삭제_대상이_없으면_404를_반환한다() throws Exception {
+        // given
+        authenticate(CREATOR_ID);
+        doThrow(WorkspaceException.of(WorkspaceErrorCode.WORKSPACE_NOT_FOUND)).when(workspaceService)
+                .delete(CREATOR_ID, PROJECT_CODE, WORKSPACE_ID, CREATOR_ID);
+
+        // when / then
+        mockMvc.perform(delete("/{userId}/{code}/workspaces/{workspaceId}", CREATOR_ID, PROJECT_CODE, WORKSPACE_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("WORKSPACE_NOT_FOUND"));
+    }
+
+    /** 숫자가 아닌 워크스페이스 ID는 서비스 호출 전에 거부한다. */
+    @Test
+    void 삭제_ID가_숫자가_아니면_400을_반환한다() throws Exception {
+        // given
+        authenticate(CREATOR_ID);
+
+        // when / then
+        mockMvc.perform(delete("/{userId}/{code}/workspaces/{workspaceId}", CREATOR_ID, PROJECT_CODE, "invalid"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(workspaceService);
+    }
+
 }
