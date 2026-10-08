@@ -158,6 +158,7 @@ public class CardServiceImpl implements CardService {
         validateUpdateRequest(request, requesterId);
         Project project = findProjectForUpdate(creatorId, code, requesterId);
         Card card = findCard(project.getId(), boardId, cardId);
+        refreshCardForUpdate(card, project.getId(), boardId);
         Board targetBoard = resolveTargetBoard(card, request.getBoardId());
         CardStatus targetStatus = request.getStatus() == null ? card.getStatus() : request.getStatus();
         LocalDate startDate = request.isStartDateProvided() ? request.getStartDate() : card.getStartDate();
@@ -203,6 +204,14 @@ public class CardServiceImpl implements CardService {
         }
         return cardRepository.findByIdAndProject_IdAndBoard_Id(cardId, projectId, boardId)
                 .orElseThrow(() -> CardException.of(CardErrorCode.CARD_NOT_FOUND));
+    }
+
+    /** 프로젝트 잠금 이후 DB의 최신 카드 상태를 읽고 경로 소속을 다시 검증한다. */
+    private void refreshCardForUpdate(Card card, Long projectId, Long boardId) {
+        entityManager.refresh(card);
+        if (!projectId.equals(card.getProject().getId()) || !boardId.equals(card.getBoard().getId())) {
+            throw CardException.of(CardErrorCode.CARD_NOT_FOUND);
+        }
     }
 
     /** 보드가 생략되면 현재 보드를 유지하고 이동 대상은 같은 프로젝트로 제한한다. */

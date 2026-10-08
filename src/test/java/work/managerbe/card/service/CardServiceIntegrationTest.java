@@ -501,6 +501,50 @@ class CardServiceIntegrationTest {
                 .extracting(Card::getSortOrder).containsExactly(0, 1, 2);
     }
 
+    /** 벌크 갱신으로 DB와 미리 조회한 엔티티의 위치를 다르게 만들어 최신 위치 사용을 검증한다. */
+    @Test
+    void 미리_조회한_카드도_DB의_최신_위치로_이동한다() {
+        // given
+        var first = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var second = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var third = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        Card cached = cards.findById(third.id()).orElseThrow();
+        entityManager.flush();
+        entityManager.createQuery("update Card c set c.sortOrder = case when c.id = :cardId then 0 else c.sortOrder + 1 end where c.board.id = :boardId")
+                .setParameter("cardId", third.id())
+                .setParameter("boardId", board.getId())
+                .executeUpdate();
+        assertThat(cached.getSortOrder()).isEqualTo(2);
+        // when
+        var response = update(third.id(), "{\"sortOrder\":2}");
+        // then
+        assertThat(response.sortOrder()).isEqualTo(2);
+        entityManager.clear();
+        assertThat(cards.findAllByBoardIdAndStatus(board.getId(), CardStatus.IN_PROGRESS))
+                .extracting(Card::getId).containsExactly(first.id(), second.id(), third.id());
+        assertThat(cards.findAllByBoardIdAndStatus(board.getId(), CardStatus.IN_PROGRESS))
+                .extracting(Card::getSortOrder).containsExactly(0, 1, 2);
+    }
+
+    /** 조회 뒤 DB에서 다른 보드로 이동한 카드를 이전 경로로 수정하지 못하게 한다. */
+    @Test
+    void 최신_카드의_보드가_경로와_다르면_수정을_거절한다() {
+        // given
+        var saved = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        Card cached = cards.findById(saved.id()).orElseThrow();
+        Board target = boards.saveAndFlush(Board.create("이동한 보드", project));
+        entityManager.createQuery("update Card c set c.board = :board where c.id = :cardId")
+                .setParameter("board", target)
+                .setParameter("cardId", saved.id())
+                .executeUpdate();
+        assertThat(cached.getBoard().getId()).isEqualTo(board.getId());
+        // when / then
+        assertThatThrownBy(() -> update(saved.id(), "{\"title\":\"변경 제목\"}"))
+                .isInstanceOfSatisfying(CardException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(CardErrorCode.CARD_NOT_FOUND));
+        assertThat(cached.getTitle()).isEqualTo(saved.title());
+    }
+
     private CardResponse update(Long cardId, String json) {
         return service.update(creator.getId(), project.getCode(), board.getId(), cardId, requester.getId(),
                 mapper.readValue(json, CardUpdateRequest.class));
