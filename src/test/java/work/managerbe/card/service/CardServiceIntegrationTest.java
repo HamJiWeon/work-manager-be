@@ -1,5 +1,6 @@
 package work.managerbe.card.service;
 
+import work.managerbe.member.domain.MemberRole;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -78,8 +79,8 @@ class CardServiceIntegrationTest {
         creator = users.save(User.create("생성자", "creator@test.com", null));
         requester = users.save(User.create("요청자", "requester@test.com", null));
         project = projects.save(Project.create(creator, "CARD", "프로젝트", null));
-        members.save(Member.create(requester, project, "MEMBER"));
-        assignee = members.save(Member.create(creator, project, "OWNER"));
+        members.save(Member.create(requester, project, MemberRole.MEMBER));
+        assignee = members.save(Member.create(creator, project, MemberRole.OWNER));
         board = boards.save(Board.create("보드", project));
     }
 
@@ -126,7 +127,7 @@ class CardServiceIntegrationTest {
     void 다른_프로젝트의_담당자와_보드는_거절한다() {
         // given
         Project other = projects.save(Project.create(creator, "OTHER", "다른 프로젝트", null));
-        Member otherMember = members.save(Member.create(requester, other, "MEMBER"));
+        Member otherMember = members.save(Member.create(requester, other, MemberRole.MEMBER));
         Board otherBoard = boards.save(Board.create("다른 보드", other));
         var wrongMember = request(project.getId(), board.getId(), otherMember.getId(), null, null);
         var wrongBoard = request(project.getId(), otherBoard.getId(), assignee.getId(), null, null);
@@ -235,7 +236,7 @@ class CardServiceIntegrationTest {
         // given
         var saved = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
         var other = projects.save(Project.create(creator, "OTHER", "다른 프로젝트", null));
-        members.save(Member.create(requester, other, "MEMBER"));
+        members.save(Member.create(requester, other, MemberRole.MEMBER));
         var otherBoard = boards.save(Board.create("다른 보드", other));
         // when / then
         assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), board.getId(),

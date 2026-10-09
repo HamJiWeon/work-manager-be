@@ -1,5 +1,6 @@
 package work.managerbe.project.repository;
 
+import work.managerbe.member.domain.MemberRole;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import({JpaAuditingConfig.class, QuerydslConfig.class})
 class ProjectRepositoryTest {
 
-    private static final String ROLE = "MEMBER";
+    private static final MemberRole ROLE = MemberRole.MEMBER;
 
     @Autowired
     private ProjectRepository projectRepository;
@@ -191,8 +192,8 @@ class ProjectRepositoryTest {
         Project second = Project.create(secondCreator, "WORK", "둘째 프로젝트", null);
         entityManager.persist(first);
         entityManager.persist(second);
-        entityManager.persist(Member.create(firstCreator, first, "OWNER"));
-        entityManager.persist(Member.create(secondCreator, second, "OWNER"));
+        entityManager.persist(Member.create(firstCreator, first, MemberRole.OWNER));
+        entityManager.persist(Member.create(secondCreator, second, MemberRole.OWNER));
         entityManager.persist(Member.create(user, first, ROLE));
         entityManager.persist(Member.create(user, second, ROLE));
         entityManager.flush();
@@ -221,7 +222,7 @@ class ProjectRepositoryTest {
         entityManager.persist(creator);
         Project project = Project.create(creator, "WORK", "업무", null);
         entityManager.persist(project);
-        entityManager.persist(Member.create(creator, project, "OWNER"));
+        entityManager.persist(Member.create(creator, project, MemberRole.OWNER));
         Member member = Member.create(user, project, ROLE);
         entityManager.persist(member);
         member.leave(member.getJoinedAt());
@@ -245,7 +246,7 @@ class ProjectRepositoryTest {
         entityManager.persist(creator);
         Project project = Project.create(creator, "WORK", "업무", null);
         entityManager.persist(project);
-        entityManager.persist(Member.create(creator, project, "OWNER"));
+        entityManager.persist(Member.create(creator, project, MemberRole.OWNER));
         entityManager.flush();
         entityManager.clear();
 

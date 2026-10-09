@@ -1,5 +1,6 @@
 package work.managerbe.project.service;
 
+import work.managerbe.member.domain.MemberRole;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -94,7 +95,7 @@ class ProjectServiceIntegrationTest {
         entityManager.persist(creator);
         Project project = Project.create(creator, "DELETE", "삭제할 프로젝트", null);
         entityManager.persist(project);
-        Member member = Member.create(creator, project, "OWNER");
+        Member member = Member.create(creator, project, MemberRole.OWNER);
         Board board = project.addBoard("진행 중");
         Workspace workspace = Workspace.create(project, "워크스페이스", "내용");
         entityManager.persist(member);

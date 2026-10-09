@@ -1,5 +1,6 @@
 package work.managerbe.board.repository;
 
+import work.managerbe.member.domain.MemberRole;
 import jakarta.persistence.EntityManager;
 import work.managerbe.member.domain.Member;
 import java.util.concurrent.CountDownLatch;
@@ -58,7 +59,7 @@ class BoardConcurrencyTest {
         transaction.executeWithoutResult(status -> {
             entityManager.persist(user);
             entityManager.persist(project);
-            entityManager.persist(Member.create(user, project, "MEMBER"));
+            entityManager.persist(Member.create(user, project, MemberRole.MEMBER));
         });
         var firstCreated = new CountDownLatch(1);
         var secondStarted = new CountDownLatch(1);

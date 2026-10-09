@@ -1,5 +1,6 @@
 package work.managerbe.member.controller;
 
+import work.managerbe.member.domain.MemberRole;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -57,9 +58,9 @@ class MemberControllerTest {
     void 멤버_추가는_역할_기본값과_201_응답을_제공한다(String roleField) throws Exception {
         // given
         var now = LocalDateTime.of(2026, 9, 14, 9, 0);
-        var request = new MemberCreateRequest(TARGET, "MEMBER");
+        var request = new MemberCreateRequest(TARGET, MemberRole.MEMBER);
         when(service.create(CREATOR, "TEST", CREATOR, request)).thenReturn(
-                new MemberResponse(7L, TARGET, 1L, "MEMBER", now, null, now, now));
+                new MemberResponse(7L, TARGET, 1L, MemberRole.MEMBER, now, null, now, now));
         // when / then
         mvc.perform(post("/{userId}/TEST/members", CREATOR).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"userId\":\"" + TARGET + "\"" + roleField + "}"))
@@ -77,7 +78,9 @@ class MemberControllerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{", "", "{\"userId\":\"invalid\"}",
-            "{\"userId\":null}", "{\"userId\":\"550e8400-e29b-41d4-a716-446655440000\",\"role\":\"OWNER\"}"})
+            "{\"userId\":null}",
+            "{\"userId\":\"550e8400-e29b-41d4-a716-446655440000\",\"role\":\"UNKNOWN\"}",
+            "{\"userId\":\"550e8400-e29b-41d4-a716-446655440000\",\"role\":\"ADMIN\"}", "{\"userId\":\"550e8400-e29b-41d4-a716-446655440000\",\"role\":\"OWNER\"}"})
     void 잘못된_본문은_서비스_호출_없이_400을_반환한다(String body) throws Exception {
         // given / when / then
         mvc.perform(post("/{userId}/TEST/members", CREATOR).contentType(MediaType.APPLICATION_JSON).content(body))

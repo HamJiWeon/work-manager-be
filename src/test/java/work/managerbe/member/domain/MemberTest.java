@@ -1,5 +1,6 @@
 package work.managerbe.member.domain;
 
+import work.managerbe.member.domain.MemberRole;
 import org.junit.jupiter.api.Test;
 import work.managerbe.project.domain.Project;
 import work.managerbe.user.domain.User;
@@ -11,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class MemberTest {
 
-    private static final String ROLE = "MEMBER";
+    private static final MemberRole ROLE = MemberRole.MEMBER;
 
     @Test
     void 사용자와_프로젝트와_역할로_멤버를_생성한다() {

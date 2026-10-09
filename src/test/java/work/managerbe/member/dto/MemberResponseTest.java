@@ -1,5 +1,6 @@
 package work.managerbe.member.dto;
 
+import work.managerbe.member.domain.MemberRole;
 import org.junit.jupiter.api.Test;
 import work.managerbe.member.domain.Member;
 import work.managerbe.project.domain.Project;
@@ -20,7 +21,7 @@ class MemberResponseTest {
     private static final Long MEMBER_ID = 10L;
     private static final Long PROJECT_ID = 20L;
     private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
-    private static final String ROLE = "MEMBER";
+    private static final MemberRole ROLE = MemberRole.MEMBER;
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 9, 1, 10, 0);
     private static final LocalDateTime JOINED_AT = CREATED_AT.plusMinutes(1);
     private static final LocalDateTime LEFT_AT = JOINED_AT.plusDays(1);
