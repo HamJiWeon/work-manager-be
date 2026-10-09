@@ -8,6 +8,9 @@ import work.managerbe.member.domain.Member;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
 
+    /** 탈퇴 여부와 관계없이 프로젝트의 기존 가입 이력을 확인한다. */
+    boolean existsByUser_IdAndProject_Id(UUID userId, Long projectId);
+
     /**
      * 사용자와 프로젝트가 일치하고 탈퇴 시각이 없는 활성 참여 여부를 조회한다.
      */
