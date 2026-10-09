@@ -26,3 +26,7 @@ H2는 컬럼 추가 시 카드 테이블을 재생성하므로 프로젝트 외�
 `db/vendor/h2/V14__restore_project_cascade_order.sql`에서 카드가 보드·멤버보다 먼저 연쇄 삭제되도록 기존 프로젝트 외래 키를 같은 정의로 재등록한다.
 공통 마이그레이션과 `classpath:db/vendor/{vendor}`를 함께 로드하며 PostgreSQL에는 H2 전용 V14를 적용하지 않는다.
 Flyway API를 직접 호출하는 테스트에서는 필요한 DB 전용 경로를 명시한다.
+
+`V15__add_card_sort_order.sql`은 카드에 0 기반 `sort_order`를 추가한다. 기존 카드는 `ROW_NUMBER()`로 보드·상태별 ID 오름차순 위치를 계산한 뒤 `MERGE`로 일괄 갱신하며 음수 위치를 금지한다. 카드 생성·이동은 프로젝트 행 잠금 안에서 실행하여 순서 변경을 직렬화한다.
+
+H2는 V15 컬럼 추가 시에도 테이블을 재생성하므로 `db/vendor/h2/V16__restore_project_cascade_order_after_card_sort.sql`에서 V14와 같은 외래 키 순서 보정을 적용한다. PostgreSQL에서는 이 파일을 적용하지 않는다.

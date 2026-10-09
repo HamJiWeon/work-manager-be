@@ -39,6 +39,7 @@ class CardResponseTest {
         Project project = mock(Project.class);
         Board board = mock(Board.class);
         when(card.getId()).thenReturn(CARD_ID);
+        when(card.getSortOrder()).thenReturn(2);
         when(card.getUsername()).thenReturn(USERNAME);
         when(card.getTitle()).thenReturn(TITLE);
         when(card.getContent()).thenReturn(CONTENT);
@@ -59,6 +60,7 @@ class CardResponseTest {
 
         // then
         assertThat(response.id()).isEqualTo(CARD_ID);
+        assertThat(response.sortOrder()).isEqualTo(2);
         assertThat(response.username()).isEqualTo(USERNAME);
         assertThat(response.title()).isEqualTo(TITLE);
         assertThat(response.content()).isEqualTo(CONTENT);

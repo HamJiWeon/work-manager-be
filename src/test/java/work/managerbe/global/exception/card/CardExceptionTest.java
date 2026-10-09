@@ -86,4 +86,16 @@ class CardExceptionTest {
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("errorCode는 필수입니다.");
     }
+
+    /** 수정 요청 오류의 공개 식별자와 응답 계약을 검증한다. */
+    @Test
+    void 수정_요청_오류는_400과_명세_메시지를_제공한다() {
+        // given
+        CardErrorCode code = CardErrorCode.CARD_INVALID_UPDATE;
+        // when / then
+        assertThat(code.getName()).isEqualTo("CRD-003");
+        assertThat(code.getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(code.getMessage()).isEqualTo("카드 수정 요청이 유효하지 않습니다.");
+    }
+
 }
