@@ -19,7 +19,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import work.managerbe.card.domain.CardStatus;
 import work.managerbe.card.dto.request.CardCreateRequest;
+import work.managerbe.card.dto.request.CardFilterRequest;
 import work.managerbe.card.dto.response.CardResponse;
+import work.managerbe.card.dto.response.CardSliceResponse;
 import work.managerbe.card.service.CardService;
 
 import static org.mockito.Mockito.*;
@@ -61,6 +63,119 @@ class CardControllerTest {
         SecurityContextHolder.clearContext();
     }
 
+    /**
+     * 경로의 프로젝트 코드와 쿼리의 카드 코드를 분리해 날짜 및 담당자 필터를 전달한다.
+     */
+    @Test
+    void 날짜와_카드_코드_필터를_함께_전달한다() throws Exception {
+        // given
+        var filter = CardFilterRequest.of(7L, LocalDate.of(2026, 9, 11), LocalDate.of(2026, 9, 15), "TEST-123");
+        when(service.getAll(CREATOR, "TEST", 3L, REQUESTER, 0, 20, filter))
+                .thenReturn(new CardSliceResponse(List.of(), 0, 20, false));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/3/cards", CREATOR)
+                .param("memberId", "7").param("startDate", "2026-09-11")
+                .param("endDate", "2026-09-15").param("code", "TEST-123"))
+                .andExpect(status().isOk());
+        verify(service).getAll(CREATOR, "TEST", 3L, REQUESTER, 0, 20, filter);
+    }
+
+    /**
+     * 서비스의 잘못된 기간 오류를 400 응답으로 변환한다.
+     */
+    @Test
+    void 역전된_조회_기간은_400을_반환한다() throws Exception {
+        // given
+        var filter = CardFilterRequest.of(null, LocalDate.of(2026, 9, 15), LocalDate.of(2026, 9, 11), null);
+        when(service.getAll(CREATOR, "TEST", 3L, REQUESTER, 0, 20, filter))
+                .thenThrow(CardException.of(CardErrorCode.CARD_INVALID_FILTER));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/3/cards", CREATOR)
+                .param("startDate", "2026-09-15").param("endDate", "2026-09-11"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CARD_INVALID_FILTER"));
+    }
+
+    /**
+     * 선택한 멤버 ID를 서비스의 동적 필터로 전달한다.
+     */
+    @Test
+    void 선택한_멤버로_카드_목록을_필터링한다() throws Exception {
+        // given
+        when(service.getAll(CREATOR, "TEST", 3L, REQUESTER, 0, 20, CardFilterRequest.of(7L, null, null, null)))
+                .thenReturn(new CardSliceResponse(List.of(), 0, 20, false));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/3/cards?memberId=7", CREATOR))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.hasNext").value(false));
+        verify(service).getAll(CREATOR, "TEST", 3L, REQUESTER, 0, 20, CardFilterRequest.of(7L, null, null, null));
+    }
+
+    /**
+     * 명시한 페이지와 카드 필드가 목록 JSON으로 반환되는지 검증한다.
+     */
+    @Test
+    void 카드_목록은_카드_필드와_페이징_정보를_반환한다() throws Exception {
+        // given
+        var now = LocalDateTime.of(2026, 9, 11, 9, 0);
+        var card = new CardResponse(101L, "홍길동", "로그인 API 구현", "내용", CardStatus.IN_PROGRESS,
+                7L, 1L, 3L, LocalDate.of(2026, 9, 11), LocalDate.of(2026, 9, 15), now, now, 0, "TEST-101");
+        when(service.getAll(CREATOR, "TEST", 3L, REQUESTER, 1, 2, CardFilterRequest.empty()))
+                .thenReturn(new CardSliceResponse(List.of(card), 1, 2, false));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/3/cards?page=1&size=2", CREATOR))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(101))
+                .andExpect(jsonPath("$.items[0].code").value("TEST-101"))
+                .andExpect(jsonPath("$.items[0].username").value("홍길동"))
+                .andExpect(jsonPath("$.items[0].title").value("로그인 API 구현"))
+                .andExpect(jsonPath("$.items[0].content").value("내용"))
+                .andExpect(jsonPath("$.items[0].memberId").value(7))
+                .andExpect(jsonPath("$.items[0].projectId").value(1))
+                .andExpect(jsonPath("$.items[0].boardId").value(3))
+                .andExpect(jsonPath("$.items[0].startDate").value("2026-09-11"))
+                .andExpect(jsonPath("$.items[0].endDate").value("2026-09-15"))
+                .andExpect(jsonPath("$.items[0].createdAt").value("2026-09-11T09:00:00"))
+                .andExpect(jsonPath("$.items[0].updatedAt").value("2026-09-11T09:00:00"))
+                .andExpect(jsonPath("$.items[0].status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.items[0].sortOrder").value(0))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.totalElements").doesNotExist())
+                .andExpect(jsonPath("$.totalPages").doesNotExist());
+        verify(service).getAll(CREATOR, "TEST", 3L, REQUESTER, 1, 2, CardFilterRequest.empty());
+    }
+
+    /**
+     * 기본 페이징 값과 빈 목록의 명세 응답을 검증한다.
+     */
+    @Test
+    void 카드_목록이_없으면_빈_페이지를_반환한다() throws Exception {
+        // given
+        when(service.getAll(CREATOR, "TEST", 3L, REQUESTER, 0, 20, CardFilterRequest.empty()))
+                .thenReturn(new CardSliceResponse(List.of(), 0, 20, false));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/3/cards", CREATOR))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.hasNext").value(false));
+        verify(service).getAll(CREATOR, "TEST", 3L, REQUESTER, 0, 20, CardFilterRequest.empty());
+    }
+
+    /**
+     * 잘못된 페이지 파라미터를 서비스 호출 전에 거절한다.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"page=-1", "size=0", "size=101", "page=abc", "memberId=0", "startDate=invalid", "endDate=2026-02-30"})
+    void 잘못된_목록_페이지는_400을_반환한다(String query) throws Exception {
+        // given / when / then
+        mvc.perform(get("/{userId}/TEST/3/cards?" + query, CREATOR))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
     @Test
     void 카드_생성은_201과_전체_필드를_반환한다() throws Exception {
         // given
@@ -71,7 +186,7 @@ class CardControllerTest {
                 CardStatus.NOT_STARTED, 7L, 1L, 3L, start, end);
         when(service.create(CREATOR, "TEST", 3L, REQUESTER, request)).thenReturn(new CardResponse(
                 101L, request.username(), request.title(), request.content(), request.status(),
-                7L, 1L, 3L, start, end, now, now, 0));
+                7L, 1L, 3L, start, end, now, now, 0, "TEST-101"));
         // when / then
         mvc.perform(post("/{userId}/TEST/3/cards", CREATOR).contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -106,7 +221,7 @@ class CardControllerTest {
         var now = LocalDateTime.of(2026, 9, 11, 9, 0);
         when(service.get(CREATOR, "TEST", 3L, 101L, REQUESTER)).thenReturn(new CardResponse(
                 101L, "홍길동", "로그인 API 구현", "로그인 요청 및 응답을 구현한다.",
-                CardStatus.NOT_STARTED, 7L, 1L, 3L, start, end, now, now, 0));
+                CardStatus.NOT_STARTED, 7L, 1L, 3L, start, end, now, now, 0, "TEST-101"));
         // when / then
         mvc.perform(get("/{userId}/TEST/3/cards/101", CREATOR))
                 .andExpect(status().isOk())
@@ -157,7 +272,7 @@ class CardControllerTest {
         var now = LocalDateTime.of(2026, 9, 11, 9, 0);
         when(service.update(eq(CREATOR), eq("TEST"), eq(3L), eq(101L), eq(REQUESTER), any()))
                 .thenReturn(new CardResponse(101L, "담당자", "제목", "내용", CardStatus.DONE,
-                        7L, 1L, 3L, null, null, now, now, 2));
+                        7L, 1L, 3L, null, null, now, now, 2, "TEST-101"));
         // when / then
         mvc.perform(patch("/{userId}/TEST/3/cards/101", CREATOR).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"status\":\"DONE\",\"sortOrder\":2,\"endDate\":null}"))
@@ -179,7 +294,9 @@ class CardControllerTest {
     }
 
 
-    /** 비날짜 필드의 명시적 null을 서비스 호출 이전에 400으로 반환한다. */
+    /**
+     * 비날짜 필드의 명시적 null을 서비스 호출 이전에 400으로 반환한다.
+     */
     @ParameterizedTest
     @ValueSource(strings = {"{\"title\":null,\"status\":\"DONE\"}",
             "{\"content\":null,\"status\":\"DONE\"}", "{\"boardId\":null,\"status\":\"DONE\"}",
@@ -192,7 +309,9 @@ class CardControllerTest {
         verifyNoInteractions(service);
     }
 
-    /** 서비스의 수정 검증 오류를 공개 JSON 오류 응답으로 변환한다. */
+    /**
+     * 서비스의 수정 검증 오류를 공개 JSON 오류 응답으로 변환한다.
+     */
     @Test
     void 잘못된_수정_요청의_오류_코드와_메시지를_반환한다() throws Exception {
         // given

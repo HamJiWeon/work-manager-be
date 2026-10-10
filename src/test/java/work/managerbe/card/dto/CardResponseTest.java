@@ -49,6 +49,7 @@ class CardResponseTest {
         when(card.getBoard()).thenReturn(board);
         when(member.getId()).thenReturn(MEMBER_ID);
         when(project.getId()).thenReturn(PROJECT_ID);
+        when(project.getCode()).thenReturn("TASK");
         when(board.getId()).thenReturn(BOARD_ID);
         when(card.getStartDate()).thenReturn(START_DATE);
         when(card.getEndDate()).thenReturn(END_DATE);
@@ -60,6 +61,7 @@ class CardResponseTest {
 
         // then
         assertThat(response.id()).isEqualTo(CARD_ID);
+        assertThat(response.code()).isEqualTo("TASK-10");
         assertThat(response.sortOrder()).isEqualTo(2);
         assertThat(response.username()).isEqualTo(USERNAME);
         assertThat(response.title()).isEqualTo(TITLE);
@@ -74,6 +76,24 @@ class CardResponseTest {
         assertThat(response.updatedAt()).isEqualTo(UPDATED_AT);
     }
 
+    /**
+     * 카드 ID가 있어도 프로젝트가 없으면 카드 코드를 생성하지 않고 ID는 유지하는지 검증한다.
+     */
+    @Test
+    void 카드_ID가_있어도_프로젝트가_없으면_카드_코드는_없다() {
+        // given
+        Card card = mock(Card.class);
+        when(card.getId()).thenReturn(CARD_ID);
+
+        // when
+        CardResponse response = CardResponse.from(card);
+
+        // then
+        assertThat(response.id()).isEqualTo(CARD_ID);
+        assertThat(response.projectId()).isNull();
+        assertThat(response.code()).isNull();
+    }
+
     @Test
     void 연관_엔티티와_일정이_없어도_응답으로_변환한다() {
         // given
@@ -85,6 +105,7 @@ class CardResponseTest {
 
         // then
         assertThat(response.id()).isNull();
+        assertThat(response.code()).isNull();
         assertThat(response.username()).isEqualTo(USERNAME);
         assertThat(response.title()).isEqualTo(TITLE);
         assertThat(response.content()).isEqualTo(CONTENT);

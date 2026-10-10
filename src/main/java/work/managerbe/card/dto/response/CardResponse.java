@@ -22,10 +22,12 @@ public record CardResponse(
         LocalDate endDate,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        int sortOrder
+        int sortOrder,
+        String code
 ) {
     /**
-     * 카드 엔티티를 응답으로 변환하고 연관 엔티티는 ID로 표현한다.
+     * 카드 엔티티를 응답으로 변환하고 프로젝트 코드와 카드 ID를 결합해 식별 코드를 생성한다.
+     * 연관 엔티티는 ID로 표현한다.
      */
     public static CardResponse from(Card card) {
         return new CardResponse(
@@ -41,7 +43,9 @@ public record CardResponse(
                 card.getEndDate(),
                 card.getCreatedAt(),
                 card.getUpdatedAt(),
-                card.getSortOrder()
+                card.getSortOrder(),
+                card.getId() == null || card.getProject() == null
+                        ? null : card.getProject().getCode() + "-" + card.getId()
         );
     }
 }
