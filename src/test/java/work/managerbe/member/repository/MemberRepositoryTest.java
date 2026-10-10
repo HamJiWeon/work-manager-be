@@ -1,5 +1,6 @@
 package work.managerbe.member.repository;
 
+import work.managerbe.member.domain.MemberRole;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Transactional
 class MemberRepositoryTest {
 
-    private static final String ROLE = "MEMBER";
+    private static final MemberRole ROLE = MemberRole.MEMBER;
 
     private final MemberRepository memberRepository;
     private final EntityManager entityManager;

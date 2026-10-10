@@ -1,5 +1,6 @@
 package work.managerbe.board.repository;
 
+import work.managerbe.member.domain.MemberRole;
 import jakarta.persistence.EntityManager;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -120,7 +121,7 @@ class BoardRepositoryTest {
                 .setParameter("userId", creator.getId())
                 .setParameter("projectId", project.id())
                 .getSingleResult();
-        assertThat(member.getRole()).isEqualTo("OWNER");
+        assertThat(member.getRole()).isEqualTo(MemberRole.OWNER);
         assertThat(entityManager.find(Project.class, project.id()).getCreator().getId())
                 .isEqualTo(creator.getId());
         assertThat(member.getJoinedAt()).isNotNull();
@@ -178,7 +179,7 @@ class BoardRepositoryTest {
         Project project = Project.create(creator(), "SERVICE", "프로젝트", null);
         entityManager.persist(user);
         entityManager.persist(project);
-        entityManager.persist(Member.create(user, project, "MEMBER"));
+        entityManager.persist(Member.create(user, project, MemberRole.MEMBER));
 
         // when
         var first = boardService.create(project.getCreator().getId(), project.getCode(), user.getId(), new BoardCreateRequest("첫 보드"));
@@ -261,8 +262,8 @@ class BoardRepositoryTest {
         entityManager.persist(member);
         entityManager.persist(target);
         entityManager.persist(other);
-        entityManager.persist(Member.create(user, other, "MEMBER"));
-        entityManager.persist(Member.create(member, target, "MEMBER"));
+        entityManager.persist(Member.create(user, other, MemberRole.MEMBER));
+        entityManager.persist(Member.create(member, target, MemberRole.MEMBER));
         entityManager.flush();
         entityManager.clear();
 
@@ -282,7 +283,7 @@ class BoardRepositoryTest {
         Project project = Project.create(creator(), "LEFT", "탈퇴한 프로젝트", null);
         entityManager.persist(user);
         entityManager.persist(project);
-        Member member = Member.create(user, project, "MEMBER");
+        Member member = Member.create(user, project, MemberRole.MEMBER);
         entityManager.persist(member);
         member.leave(member.getJoinedAt());
         entityManager.flush();
@@ -306,7 +307,7 @@ class BoardRepositoryTest {
         entityManager.persist(user);
         entityManager.persist(project);
         entityManager.persist(other);
-        entityManager.persist(Member.create(user, project, "MEMBER"));
+        entityManager.persist(Member.create(user, project, MemberRole.MEMBER));
         Board first = boardRepository.save(project.addBoard("첫 보드"));
         Board second = boardRepository.save(project.addBoard("둘째 보드"));
         Board third = boardRepository.save(project.addBoard("셋째 보드"));
@@ -344,7 +345,7 @@ class BoardRepositoryTest {
         Project project = Project.create(creator(), "EMPTY_LIST", "빈 목록", null);
         entityManager.persist(user);
         entityManager.persist(project);
-        entityManager.persist(Member.create(user, project, "MEMBER"));
+        entityManager.persist(Member.create(user, project, MemberRole.MEMBER));
         entityManager.flush();
         entityManager.clear();
 
@@ -363,7 +364,7 @@ class BoardRepositoryTest {
         Project project = Project.create(creator(), "LEFT_LIST", "목록", null);
         entityManager.persist(user);
         entityManager.persist(project);
-        Member member = Member.create(user, project, "MEMBER");
+        Member member = Member.create(user, project, MemberRole.MEMBER);
         entityManager.persist(member);
         member.leave(member.getJoinedAt());
         entityManager.flush();
@@ -387,8 +388,8 @@ class BoardRepositoryTest {
         Project second = Project.create(secondCreator, "WORK", "둘째 프로젝트", null);
         entityManager.persist(first);
         entityManager.persist(second);
-        entityManager.persist(Member.create(requester, first, "MEMBER"));
-        entityManager.persist(Member.create(requester, second, "MEMBER"));
+        entityManager.persist(Member.create(requester, first, MemberRole.MEMBER));
+        entityManager.persist(Member.create(requester, second, MemberRole.MEMBER));
         entityManager.flush();
         entityManager.clear();
 
@@ -423,7 +424,7 @@ class BoardRepositoryTest {
         User owner = creator();
         Project project = Project.create(owner, "EDIT", "수정", null);
         entityManager.persist(project);
-        entityManager.persist(Member.create(owner, project, "OWNER"));
+        entityManager.persist(Member.create(owner, project, MemberRole.OWNER));
         Board first = boardRepository.save(project.addBoard("첫 보드"));
         Board second = boardRepository.save(project.addBoard("둘째 보드"));
         Board third = boardRepository.save(project.addBoard("셋째 보드"));
@@ -486,7 +487,7 @@ class BoardRepositoryTest {
         Project other = Project.create(creator(), "TARGET_EDIT", "다른 프로젝트", null);
         entityManager.persist(target);
         entityManager.persist(other);
-        entityManager.persist(Member.create(owner, target, "OWNER"));
+        entityManager.persist(Member.create(owner, target, MemberRole.OWNER));
         Board board = boardRepository.save(other.addBoard("유지"));
         entityManager.flush();
         entityManager.clear();
@@ -505,7 +506,7 @@ class BoardRepositoryTest {
         User owner = creator();
         Project project = Project.create(owner, "LEFT_EDIT", "대상", null);
         entityManager.persist(project);
-        Member member = Member.create(owner, project, "OWNER");
+        Member member = Member.create(owner, project, MemberRole.OWNER);
         entityManager.persist(member);
         member.leave(member.getJoinedAt());
         Board board = boardRepository.save(project.addBoard("유지"));

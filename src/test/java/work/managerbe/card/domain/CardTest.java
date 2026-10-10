@@ -1,5 +1,6 @@
 package work.managerbe.card.domain;
 
+import work.managerbe.member.domain.MemberRole;
 import org.junit.jupiter.api.Test;
 import work.managerbe.board.domain.Board;
 import work.managerbe.member.domain.Member;
@@ -28,7 +29,7 @@ class CardTest {
         User creator = User.create("생성자", "creator@example.com", null);
         Project project = Project.create(creator, "TEST", "테스트 프로젝트", null);
         User user = User.create(USERNAME, "test@example.com", null);
-        Member member = Member.create(user, project, "MEMBER");
+        Member member = Member.create(user, project, MemberRole.MEMBER);
         Board board = Board.create("진행 중", project);
 
         // when
@@ -58,7 +59,7 @@ class CardTest {
         User creator = User.create("생성자", "creator@example.com", null);
         Project project = Project.create(creator, "TEST", "테스트 프로젝트", null);
         User user = User.create(USERNAME, "test@example.com", null);
-        Member member = Member.create(user, project, "MEMBER");
+        Member member = Member.create(user, project, MemberRole.MEMBER);
         Board board = Board.create("진행 중", project);
 
         // when

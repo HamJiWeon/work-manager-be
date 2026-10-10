@@ -1,5 +1,6 @@
 package work.managerbe.project.service;
 
+import work.managerbe.member.domain.MemberRole;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -161,7 +162,7 @@ class ProjectServiceImplTest {
             verify(memberRepository).save(memberCaptor.capture());
             assertThat(memberCaptor.getValue().getUser()).isSameAs(creator);
             assertThat(memberCaptor.getValue().getProject()).isSameAs(savedProject);
-            assertThat(memberCaptor.getValue().getRole()).isEqualTo("OWNER");
+            assertThat(memberCaptor.getValue().getRole()).isEqualTo(MemberRole.OWNER);
             assertThat(memberCaptor.getValue().getLeftAt()).isNull();
 
             verify(mapper).toResponse(savedProject);

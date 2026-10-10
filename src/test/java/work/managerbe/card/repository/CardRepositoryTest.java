@@ -1,5 +1,6 @@
 package work.managerbe.card.repository;
 
+import work.managerbe.member.domain.MemberRole;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,7 +56,7 @@ class CardRepositoryTest {
         project = Project.create(user, "TEST", "테스트 프로젝트", null);
         entityManager.persist(user);
         entityManager.persist(project);
-        member = Member.create(user, project, "MEMBER");
+        member = Member.create(user, project, MemberRole.MEMBER);
         board = Board.create("진행 중", project);
         entityManager.persist(member);
         entityManager.persist(board);

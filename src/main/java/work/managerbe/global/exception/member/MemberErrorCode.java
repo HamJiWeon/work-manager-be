@@ -12,7 +12,9 @@ import work.managerbe.global.exception.ApiErrorCode;
 @Getter
 @RequiredArgsConstructor
 public enum MemberErrorCode implements ApiErrorCode {
-    MEMBER_NOT_FOUND("MBR-001", HttpStatus.NOT_FOUND, "멤버를 찾을 수 없습니다.");
+    MEMBER_NOT_FOUND("MBR-001", HttpStatus.NOT_FOUND, "멤버를 찾을 수 없습니다."),
+    MEMBER_INVALID_REQUEST("MBR-002", HttpStatus.BAD_REQUEST, "멤버 추가 요청이 유효하지 않습니다."),
+    MEMBER_ALREADY_EXISTS("MBR-003", HttpStatus.CONFLICT, "이미 프로젝트에 가입한 사용자입니다.");
 
     private final String name;
     private final HttpStatus httpStatus;

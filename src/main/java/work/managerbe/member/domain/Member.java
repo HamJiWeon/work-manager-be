@@ -23,10 +23,11 @@ public class Member extends JoinEntity {
     @JoinColumn(name = "project_id")
     private Project project;
 
-    private String role;
+    @Enumerated(EnumType.STRING)
+    private MemberRole role;
 
     @Builder
-    private Member(User user, Project project, String role) {
+    private Member(User user, Project project, MemberRole role) {
         this.user = user;
         this.project = project;
         this.role = role;
@@ -35,7 +36,7 @@ public class Member extends JoinEntity {
     /**
      * 전달받은 속성과 연관 엔티티로 새 프로젝트 참여자를 생성한다.
      */
-    public static Member create(User user, Project project, String role) {
+    public static Member create(User user, Project project, MemberRole role) {
         return new Member(user, project, role);
     }
 }

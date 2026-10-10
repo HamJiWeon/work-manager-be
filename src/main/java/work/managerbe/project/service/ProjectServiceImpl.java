@@ -1,5 +1,6 @@
 package work.managerbe.project.service;
 
+import work.managerbe.member.domain.MemberRole;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -32,7 +33,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class ProjectServiceImpl implements ProjectService{
 
-    private static final String CREATOR_ROLE = "OWNER";
+    private static final MemberRole CREATOR_ROLE = MemberRole.OWNER;
     private static final int PROJECT_PAGE_SIZE = 10;
 
     private final ProjectRepository projectRepository;

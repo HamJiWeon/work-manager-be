@@ -1,5 +1,6 @@
 package work.managerbe.member.dto;
 
+import work.managerbe.member.domain.MemberRole;
 import work.managerbe.member.domain.Member;
 
 import java.time.LocalDateTime;
@@ -12,7 +13,7 @@ public record MemberResponse(
         Long id,
         UUID userId,
         Long projectId,
-        String role,
+        MemberRole role,
         LocalDateTime joinedAt,
         LocalDateTime leftAt,
         LocalDateTime createdAt,
