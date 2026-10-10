@@ -49,6 +49,7 @@ class CardResponseTest {
         when(card.getBoard()).thenReturn(board);
         when(member.getId()).thenReturn(MEMBER_ID);
         when(project.getId()).thenReturn(PROJECT_ID);
+        when(project.getCode()).thenReturn("TASK");
         when(board.getId()).thenReturn(BOARD_ID);
         when(card.getStartDate()).thenReturn(START_DATE);
         when(card.getEndDate()).thenReturn(END_DATE);
@@ -60,6 +61,7 @@ class CardResponseTest {
 
         // then
         assertThat(response.id()).isEqualTo(CARD_ID);
+        assertThat(response.code()).isEqualTo("TASK-10");
         assertThat(response.sortOrder()).isEqualTo(2);
         assertThat(response.username()).isEqualTo(USERNAME);
         assertThat(response.title()).isEqualTo(TITLE);
@@ -85,6 +87,7 @@ class CardResponseTest {
 
         // then
         assertThat(response.id()).isNull();
+        assertThat(response.code()).isNull();
         assertThat(response.username()).isEqualTo(USERNAME);
         assertThat(response.title()).isEqualTo(TITLE);
         assertThat(response.content()).isEqualTo(CONTENT);

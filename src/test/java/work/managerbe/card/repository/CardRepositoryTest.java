@@ -143,7 +143,9 @@ class CardRepositoryTest {
         assertThat(entityManager.find(Board.class, board.getId())).isNotNull();
     }
 
-    /** 보드·상태로 조회 범위를 제한하고 위치가 같으면 ID순으로 반환한다. */
+    /**
+     * 보드·상태로 조회 범위를 제한하고 위치가 같으면 ID순으로 반환한다.
+     */
     @Test
     void 상태별_카드를_위치와_ID순으로_조회하고_개수를_센다() {
         // given
@@ -176,7 +178,9 @@ class CardRepositoryTest {
         assertThat(cardRepository.countByBoard_IdAndStatus(boardId, CardStatus.DONE)).isZero();
     }
 
-    /** 벌크 갱신은 대상 구간의 다른 카드만 변경하고 지정 감사 시각을 저장한다. */
+    /**
+     * 벌크 갱신은 대상 구간의 다른 카드만 변경하고 지정 감사 시각을 저장한다.
+     */
     @Test
     void 구간_벌크_갱신은_제외_카드와_다른_상태를_보존한다() {
         // given

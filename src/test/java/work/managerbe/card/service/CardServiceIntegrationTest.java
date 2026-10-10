@@ -22,6 +22,7 @@ import work.managerbe.board.repository.BoardRepository;
 import work.managerbe.card.domain.CardStatus;
 import work.managerbe.card.domain.Card;
 import work.managerbe.card.dto.request.CardCreateRequest;
+import work.managerbe.card.dto.request.CardFilterRequest;
 import work.managerbe.card.dto.response.CardResponse;
 import work.managerbe.card.repository.CardRepository;
 import work.managerbe.global.exception.board.BoardException;
@@ -78,10 +79,163 @@ class CardServiceIntegrationTest {
     void 데이터_준비() {
         creator = users.save(User.create("생성자", "creator@test.com", null));
         requester = users.save(User.create("요청자", "requester@test.com", null));
-        project = projects.save(Project.create(creator, "CARD", "프로젝트", null));
+        project = projects.save(Project.create(creator, "WORK", "프로젝트", null));
         members.save(Member.create(requester, project, MemberRole.MEMBER));
         assignee = members.save(Member.create(creator, project, MemberRole.OWNER));
         board = boards.save(Board.create("보드", project));
+    }
+
+    /**
+     * 날짜 하한과 상한을 각각 적용하고 선택된 날짜의 오름차순과 동률 ID 순서를 검증한다.
+     */
+    @Test
+    void 날짜_필터는_경계를_포함하고_입력한_날짜_기준으로_정렬한다() {
+        // given
+        var laterStart = create(request(project.getId(), board.getId(), assignee.getId(),
+                LocalDate.of(2026, 9, 15), LocalDate.of(2026, 9, 16)), requester.getId());
+        var earlierStart = create(request(project.getId(), board.getId(), assignee.getId(),
+                LocalDate.of(2026, 9, 11), LocalDate.of(2026, 9, 20)), requester.getId());
+        var beforeRange = create(request(project.getId(), board.getId(), assignee.getId(),
+                LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 12)), requester.getId());
+        var sameDate = create(request(project.getId(), board.getId(), assignee.getId(),
+                LocalDate.of(2026, 9, 11), LocalDate.of(2026, 9, 20)), requester.getId());
+        create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        // when
+        var byStart = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 20,
+                CardFilterRequest.of(null, LocalDate.of(2026, 9, 11), null, null));
+        var byEnd = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 20,
+                CardFilterRequest.of(null, null, LocalDate.of(2026, 9, 20), null));
+        var both = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 20,
+                CardFilterRequest.of(null, LocalDate.of(2026, 9, 11), LocalDate.of(2026, 9, 16), null));
+        // then
+        assertThat(byStart.items()).extracting(CardResponse::id).containsExactly(earlierStart.id(), sameDate.id(), laterStart.id());
+        assertThat(byEnd.items()).extracting(CardResponse::id).containsExactly(beforeRange.id(), laterStart.id(), earlierStart.id(), sameDate.id());
+        assertThat(both.items()).extracting(CardResponse::id).containsExactly(laterStart.id());
+    }
+
+    /**
+     * ID 기반 카드 코드를 부분 검색하고 필터들의 AND 조합과 검색 후 페이징을 검증한다.
+     */
+    @Test
+    void 카드_코드_부분_검색은_대소문자를_무시하고_다른_필터와_조합한다() {
+        // given
+        var selected = create(request(project.getId(), board.getId(), assignee.getId(),
+                LocalDate.of(2026, 9, 11), LocalDate.of(2026, 9, 15)), requester.getId());
+        create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        // when
+        var combined = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 1,
+                CardFilterRequest.of(assignee.getId(), LocalDate.of(2026, 9, 11), LocalDate.of(2026, 9, 15),
+                        " work-" + selected.id() + " "));
+        var partial = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 1,
+                CardFilterRequest.of(null, null, null, "wOrK-"));
+        var blank = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 20,
+                CardFilterRequest.of(null, null, null, " "));
+        var wildcard = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 20,
+                CardFilterRequest.of(null, null, null, "%"));
+        // then
+        assertThat(combined.items()).extracting(CardResponse::id).containsExactly(selected.id());
+        assertThat(combined.items().getFirst().code()).isEqualTo("WORK-" + selected.id());
+        assertThat(combined.hasNext()).isFalse();
+        assertThat(partial.items()).hasSize(1);
+        assertThat(partial.hasNext()).isTrue();
+        assertThat(blank.items()).hasSize(2);
+        assertThat(wildcard.items()).isEmpty();
+    }
+
+    /**
+     * 역전된 기간과 잘못된 담당자 및 누락된 필터 요청은 공개 조회 오류로 거절한다.
+     */
+    @Test
+    void 잘못된_필터_조건을_거절한다() {
+        // given
+        var reversed = CardFilterRequest.of(null, LocalDate.of(2026, 9, 15), LocalDate.of(2026, 9, 11), null);
+        var invalidMember = CardFilterRequest.of(0L, null, null, null);
+        // when / then
+        assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 20, reversed))
+                .isInstanceOfSatisfying(CardException.class, error -> assertThat(error.getErrorCode()).isEqualTo(CardErrorCode.CARD_INVALID_FILTER));
+        assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 20, invalidMember))
+                .isInstanceOf(CardException.class);
+        assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 20, (CardFilterRequest) null))
+                .isInstanceOf(CardException.class);
+    }
+
+    /**
+     * 담당자 필터를 페이징 이전에 적용하고 결과가 정확히 한 페이지면 다음 목록이 없음을 검증한다.
+     */
+    @Test
+    void 멤버_필터는_해당_담당자의_카드만_반환한다() {
+        // given
+        var selected = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var otherMember = members.save(Member.create(users.save(User.create("다른 담당자", "other-assignee@test.com", null)), project, MemberRole.MEMBER));
+        create(request(project.getId(), board.getId(), otherMember.getId(), null, null), requester.getId());
+        // when
+        var response = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 1, CardFilterRequest.of(assignee.getId(), null, null, null));
+        var empty = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 1, CardFilterRequest.of(Long.MAX_VALUE, null, null, null));
+        // then
+        assertThat(response.items()).extracting(CardResponse::id).containsExactly(selected.id());
+        assertThat(response.hasNext()).isFalse();
+        assertThat(empty.items()).isEmpty();
+        assertThat(empty.hasNext()).isFalse();
+    }
+
+    /**
+     * 다른 보드를 제외하고 저장된 순서, 페이지 경계와 다음 데이터 존재 여부를 검증한다.
+     */
+    @Test
+    void 카드_목록은_보드별로_순서와_다음_데이터_존재_여부를_반환한다() {
+        // given
+        var first = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var second = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var third = create(request(project.getId(), board.getId(), assignee.getId(), null, null), requester.getId());
+        var otherBoard = boards.save(Board.create("다른 보드", project));
+        service.create(creator.getId(), project.getCode(), otherBoard.getId(), requester.getId(),
+                request(project.getId(), otherBoard.getId(), assignee.getId(), null, null));
+        update(third.id(), "{\"sortOrder\":0}");
+        // when
+        var firstPage = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 2);
+        var lastPage = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 1, 2);
+        var beyond = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 2, 2);
+        // then
+        assertThat(firstPage.items()).extracting(CardResponse::id).containsExactly(third.id(), first.id());
+        assertThat(firstPage.page()).isZero();
+        assertThat(firstPage.size()).isEqualTo(2);
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(lastPage.hasNext()).isFalse();
+        assertThat(lastPage.items()).extracting(CardResponse::id).containsExactly(second.id());
+        assertThat(beyond.items()).isEmpty();
+        assertThat(beyond.hasNext()).isFalse();
+    }
+
+    /**
+     * 빈 보드는 빈 목록과 다음 데이터가 없음을 반환한다.
+     */
+    @Test
+    void 빈_보드의_카드_목록은_다음_데이터가_없다() {
+        // given / when
+        var response = service.getAll(creator.getId(), project.getCode(), board.getId(), requester.getId(), 0, 20);
+        // then
+        assertThat(response.items()).isEmpty();
+        assertThat(response.hasNext()).isFalse();
+    }
+
+    /**
+     * 외부인 및 다른 프로젝트나 존재하지 않는 보드의 조회를 거절한다.
+     */
+    @Test
+    void 카드_목록은_활성_멤버와_보드_소속을_검증한다() {
+        // given
+        var outsider = users.save(User.create("외부인", "list-outsider@test.com", null));
+        var otherProject = projects.save(Project.create(creator, "OTHER", "다른 프로젝트", null));
+        var otherBoard = boards.save(Board.create("다른 보드", otherProject));
+        // when / then
+        assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), board.getId(), outsider.getId(), 0, 20))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), otherBoard.getId(), requester.getId(), 0, 20))
+                .isInstanceOf(BoardException.class);
+        assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), Long.MAX_VALUE, requester.getId(), 0, 20))
+                .isInstanceOf(BoardException.class);
+        assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), board.getId(), null, 0, 20))
+                .isInstanceOf(UserException.class);
     }
 
     @Test
@@ -441,7 +595,9 @@ class CardServiceIntegrationTest {
         assertThatThrownBy(() -> service.update(creator.getId(), "MISSING", board.getId(), saved.id(), requester.getId(), patch)).isInstanceOf(ProjectException.class);
     }
 
-    /** 뒤로 이동할 때 영향 구간만 당기고 같은 트랜잭션의 조회에도 최신 순서를 반환한다. */
+    /**
+     * 뒤로 이동할 때 영향 구간만 당기고 같은 트랜잭션의 조회에도 최신 순서를 반환한다.
+     */
     @Test
     void 같은_목록에서_뒤로_이동하면_구간만_당기고_즉시_조회에_반영한다() {
         // given
@@ -461,7 +617,9 @@ class CardServiceIntegrationTest {
                 .extracting(Card::getSortOrder).containsExactly(0, 1, 2, 3);
     }
 
-    /** 연속 이동에서도 벌크 갱신 이전 엔티티의 위치를 재사용하지 않는다. */
+    /**
+     * 연속 이동에서도 벌크 갱신 이전 엔티티의 위치를 재사용하지 않는다.
+     */
     @Test
     void 연속_이동은_최신_위치를_사용하고_동일_위치_요청은_유지한다() {
         // given
@@ -479,7 +637,9 @@ class CardServiceIntegrationTest {
                 .extracting(Card::getSortOrder).containsExactly(0, 1, 2);
     }
 
-    /** 다른 보드의 중간 삽입은 양쪽 목록의 위치를 연속되게 정리한다. */
+    /**
+     * 다른 보드의 중간 삽입은 양쪽 목록의 위치를 연속되게 정리한다.
+     */
     @Test
     void 다른_보드의_중간에_삽입하면_양쪽_순서를_수정한다() {
         // given
@@ -502,7 +662,9 @@ class CardServiceIntegrationTest {
                 .extracting(Card::getSortOrder).containsExactly(0, 1, 2);
     }
 
-    /** 벌크 갱신으로 DB와 미리 조회한 엔티티의 위치를 다르게 만들어 최신 위치 사용을 검증한다. */
+    /**
+     * 벌크 갱신으로 DB와 미리 조회한 엔티티의 위치를 다르게 만들어 최신 위치 사용을 검증한다.
+     */
     @Test
     void 미리_조회한_카드도_DB의_최신_위치로_이동한다() {
         // given
@@ -527,7 +689,9 @@ class CardServiceIntegrationTest {
                 .extracting(Card::getSortOrder).containsExactly(0, 1, 2);
     }
 
-    /** 조회 뒤 DB에서 다른 보드로 이동한 카드를 이전 경로로 수정하지 못하게 한다. */
+    /**
+     * 조회 뒤 DB에서 다른 보드로 이동한 카드를 이전 경로로 수정하지 못하게 한다.
+     */
     @Test
     void 최신_카드의_보드가_경로와_다르면_수정을_거절한다() {
         // given
