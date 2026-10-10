@@ -26,6 +26,7 @@ import work.managerbe.card.dto.request.CardFilterRequest;
 import work.managerbe.card.dto.response.CardResponse;
 import work.managerbe.card.repository.CardRepository;
 import work.managerbe.global.exception.board.BoardException;
+import work.managerbe.global.exception.board.BoardErrorCode;
 import work.managerbe.global.exception.card.CardException;
 import work.managerbe.global.exception.member.MemberException;
 import work.managerbe.global.exception.card.CardErrorCode;
@@ -236,6 +237,53 @@ class CardServiceIntegrationTest {
                 .isInstanceOf(BoardException.class);
         assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), board.getId(), null, 0, 20))
                 .isInstanceOf(UserException.class);
+    }
+
+    /**
+     * 저장되지 않은 요청자 ID로 목록을 조회하면 사용자 없음 오류를 반환하는지 검증한다.
+     */
+    @Test
+    void 카드_목록은_존재하지_않는_요청자를_거절한다() {
+        // given
+        UUID missingRequesterId = UUID.randomUUID();
+        CardFilterRequest filter = CardFilterRequest.of(null, null, null, null);
+
+        // when / then
+        assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), board.getId(),
+                missingRequesterId, 0, 20, filter))
+                .isInstanceOfSatisfying(UserException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+    }
+
+    /**
+     * 존재하는 요청자가 미등록 프로젝트 코드를 조회하면 프로젝트 없음 오류를 반환하는지 검증한다.
+     */
+    @Test
+    void 카드_목록은_존재하지_않는_프로젝트를_거절한다() {
+        // given
+        String missingProjectCode = "MISSING";
+        CardFilterRequest filter = CardFilterRequest.of(null, null, null, null);
+
+        // when / then
+        assertThatThrownBy(() -> service.getAll(creator.getId(), missingProjectCode, board.getId(),
+                requester.getId(), 0, 20, filter))
+                .isInstanceOfSatisfying(ProjectException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
+    }
+
+    /**
+     * 활성 멤버가 보드 ID 없이 목록을 조회하면 보드 없음 오류를 반환하는지 검증한다.
+     */
+    @Test
+    void 카드_목록은_보드_ID_누락을_거절한다() {
+        // given
+        CardFilterRequest filter = CardFilterRequest.of(null, null, null, null);
+
+        // when / then
+        assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), null,
+                requester.getId(), 0, 20, filter))
+                .isInstanceOfSatisfying(BoardException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(BoardErrorCode.BOARD_NOT_FOUND));
     }
 
     @Test
