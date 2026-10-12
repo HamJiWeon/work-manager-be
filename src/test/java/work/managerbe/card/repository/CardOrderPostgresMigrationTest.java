@@ -14,7 +14,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import static org.assertj.core.api.Assertions.*;
 
-/** PostgreSQL 16에 실제 마이그레이션을 적용해 기존 카드의 순서와 DB 제약 및 연쇄 삭제를 검증한다. */
+/**
+ * PostgreSQL 16에 실제 마이그레이션을 적용해 기존 카드의 순서와 DB 제약 및 연쇄 삭제를 검증한다.
+ */
 @Testcontainers(disabledWithoutDocker = true)
 class CardOrderPostgresMigrationTest {
     @Container

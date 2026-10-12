@@ -72,7 +72,9 @@ class CardTest {
         assertThat(card.getTitle()).isEqualTo(TITLE);
     }
 
-    /** 이동은 보드·상태·위치를 함께 변경하고 다른 속성은 보존한다. */
+    /**
+     * 이동은 보드·상태·위치를 함께 변경하고 다른 속성은 보존한다.
+     */
     @Test
     void 같은_프로젝트_보드로_상태와_위치를_변경한다() {
         // given
@@ -91,7 +93,9 @@ class CardTest {
         assertThat(card.getEndDate()).isEqualTo(END_DATE);
     }
 
-    /** 유효하지 않은 이동을 거절하면서 기존 카드 상태를 보존한다. */
+    /**
+     * 유효하지 않은 이동을 거절하면서 기존 카드 상태를 보존한다.
+     */
     @Test
     void 외부_프로젝트와_음수_위치로_이동하면_거절한다() {
         // given
@@ -110,7 +114,9 @@ class CardTest {
         assertThat(card.getSortOrder()).isZero();
     }
 
-    /** 생략된 내용은 보존하고 빈 내용과 명시적으로 전달한 날짜 삭제를 반영한다. */
+    /**
+     * 생략된 내용은 보존하고 빈 내용과 명시적으로 전달한 날짜 삭제를 반영한다.
+     */
     @Test
     void 제목과_본문의_null은_유지하고_빈_본문과_날짜_삭제를_반영한다() {
         // given

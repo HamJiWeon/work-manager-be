@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 import work.managerbe.card.domain.Card;
 
-public interface CardRepository extends JpaRepository<Card, Long> {
+public interface CardRepository extends JpaRepository<Card, Long>, CardQueryRepository {
     /**
      * ID와 프로젝트 및 보드 소속이 모두 일치하는 카드만 조회한다.
      */
@@ -37,7 +37,9 @@ public interface CardRepository extends JpaRepository<Card, Long> {
      */
     long countByBoard_IdAndStatus(Long boardId, CardStatus status);
 
-    /** 지정 구간의 다른 카드 위치와 감사 시각을 일괄 갱신한다. 호출자는 완료 후 영속성 컨텍스트를 비운다. */
+    /**
+     * 지정 구간의 다른 카드 위치와 감사 시각을 일괄 갱신한다. 호출자는 완료 후 영속성 컨텍스트를 비운다.
+     */
     @Modifying(flushAutomatically = true)
     @Query("""
             update Card c

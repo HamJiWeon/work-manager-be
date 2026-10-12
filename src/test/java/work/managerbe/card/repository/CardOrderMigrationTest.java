@@ -11,7 +11,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import static org.assertj.core.api.Assertions.*;
 
-/** 기존 카드가 있는 H2 DB에 실제 순서 마이그레이션을 적용해 상태별 초기 순서와 제약을 확인한다. */
+/**
+ * 기존 카드가 있는 H2 DB에 실제 순서 마이그레이션을 적용해 상태별 초기 순서와 제약을 확인한다.
+ */
 class CardOrderMigrationTest {
     private static final String MIGRATIONS = "classpath:db/migration";
     private static final String H2_MIGRATIONS = "classpath:db/vendor/h2";

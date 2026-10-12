@@ -87,7 +87,9 @@ class CardExceptionTest {
                 .hasMessage("errorCode는 필수입니다.");
     }
 
-    /** 수정 요청 오류의 공개 식별자와 응답 계약을 검증한다. */
+    /**
+     * 수정 요청 오류의 공개 식별자와 응답 계약을 검증한다.
+     */
     @Test
     void 수정_요청_오류는_400과_명세_메시지를_제공한다() {
         // given

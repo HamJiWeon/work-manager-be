@@ -1,6 +1,8 @@
 package work.managerbe.card.service;
 
 import java.util.UUID;
+import work.managerbe.card.dto.request.CardFilterRequest;
+import org.springframework.data.domain.PageRequest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import jakarta.persistence.EntityManager;
@@ -16,6 +18,7 @@ import work.managerbe.card.domain.CardStatus;
 import work.managerbe.card.dto.request.CardCreateRequest;
 import work.managerbe.card.dto.request.CardUpdateRequest;
 import work.managerbe.card.dto.response.CardResponse;
+import work.managerbe.card.dto.response.CardSliceResponse;
 import work.managerbe.card.repository.CardRepository;
 import work.managerbe.global.exception.board.*;
 import work.managerbe.global.exception.card.*;
@@ -44,6 +47,36 @@ public class CardServiceImpl implements CardService {
     private final BoardRepository boardRepository;
     private final MemberRepository memberRepository;
     private final UserRepository userRepository;
+
+    /**
+     * 조회 조건, 사용자와 활성 참여 및 보드 소속을 검증한 뒤 QueryDSL 필터 조회 결과를 반환한다.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public CardSliceResponse getAll(UUID creatorId, String code, Long boardId, UUID requesterId,
+                                   int page, int size, CardFilterRequest filter) {
+        if (filter == null || !filter.isValid()) {
+            throw CardException.of(CardErrorCode.CARD_INVALID_FILTER);
+        }
+        validateRequesterId(requesterId);
+        if (!userRepository.existsById(requesterId)) {
+            throw UserException.of(UserErrorCode.USER_NOT_FOUND);
+        }
+        validateProjectIdentifier(creatorId, code);
+        Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        if (!memberRepository.existsByUserIdAndProjectId(requesterId, project.getId())) {
+            throw new AccessDeniedException("프로젝트의 활성 멤버만 카드를 조회할 수 있습니다.");
+        }
+        if (boardId == null) {
+            throw BoardException.of(BoardErrorCode.BOARD_NOT_FOUND);
+        }
+        boardRepository.findById(boardId)
+                .filter(board -> project.getId().equals(board.getProject().getId()))
+                .orElseThrow(() -> BoardException.of(BoardErrorCode.BOARD_NOT_FOUND));
+        return CardSliceResponse.from(cardRepository.findSlice(project.getId(), boardId, filter,
+                PageRequest.of(page, size)));
+    }
 
     /**
      * 생성 요청의 필수값과 일정, 경로와 본문의 보드 ID 일치 여부를 확인한다.
@@ -175,7 +208,9 @@ public class CardServiceImpl implements CardService {
         return response;
     }
 
-    /** 수정 요청의 필수값을 검증한 뒤 인증된 사용자의 존재를 확인한다. */
+    /**
+     * 수정 요청의 필수값을 검증한 뒤 인증된 사용자의 존재를 확인한다.
+     */
     private void validateUpdateRequest(CardUpdateRequest request, UUID requesterId) {
 
         if (request == null || !request.isValid()) {
@@ -188,7 +223,9 @@ public class CardServiceImpl implements CardService {
         }
     }
 
-    /** 프로젝트 잠금을 획득하고 요청자가 활성 멤버인지 확인한다. */
+    /**
+     * 프로젝트 잠금을 획득하고 요청자가 활성 멤버인지 확인한다.
+     */
     private Project findProjectForUpdate(UUID creatorId, String code, UUID requesterId) {
         validateProjectIdentifier(creatorId, code);
         Project project = projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, code)
@@ -197,7 +234,9 @@ public class CardServiceImpl implements CardService {
         return project;
     }
 
-    /** 카드 ID와 경로의 프로젝트·보드 소속이 모두 일치하는 카드를 조회한다. */
+    /**
+     * 카드 ID와 경로의 프로젝트·보드 소속이 모두 일치하는 카드를 조회한다.
+     */
     private Card findCard(Long projectId, Long boardId, Long cardId) {
         if (boardId == null || cardId == null) {
             throw CardException.of(CardErrorCode.CARD_NOT_FOUND);
@@ -206,7 +245,9 @@ public class CardServiceImpl implements CardService {
                 .orElseThrow(() -> CardException.of(CardErrorCode.CARD_NOT_FOUND));
     }
 
-    /** 프로젝트 잠금 이후 DB의 최신 카드 상태를 읽고 경로 소속을 다시 검증한다. */
+    /**
+     * 프로젝트 잠금 이후 DB의 최신 카드 상태를 읽고 경로 소속을 다시 검증한다.
+     */
     private void refreshCardForUpdate(Card card, Long projectId, Long boardId) {
         entityManager.refresh(card);
         if (!projectId.equals(card.getProject().getId()) || !boardId.equals(card.getBoard().getId())) {
@@ -214,7 +255,9 @@ public class CardServiceImpl implements CardService {
         }
     }
 
-    /** 보드가 생략되면 현재 보드를 유지하고 이동 대상은 같은 프로젝트로 제한한다. */
+    /**
+     * 보드가 생략되면 현재 보드를 유지하고 이동 대상은 같은 프로젝트로 제한한다.
+     */
     private Board resolveTargetBoard(Card card, Long requestedBoardId) {
         if (requestedBoardId == null || requestedBoardId.equals(card.getBoard().getId())) {
             return card.getBoard();
@@ -224,14 +267,18 @@ public class CardServiceImpl implements CardService {
                 .orElseThrow(() -> BoardException.of(BoardErrorCode.BOARD_NOT_FOUND));
     }
 
-    /** 기존 일정과 요청 일정을 합친 결과에서 종료일이 시작일보다 앞서는지 검증한다. */
+    /**
+     * 기존 일정과 요청 일정을 합친 결과에서 종료일이 시작일보다 앞서는지 검증한다.
+     */
     private static void validateDates(LocalDate startDate, LocalDate endDate) {
         if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
             throw CardException.of(CardErrorCode.CARD_INVALID_UPDATE);
         }
     }
 
-    /** 대상 목록의 길이로 위치를 검증하고 영향받는 구간만 일괄 이동한다. 생략한 위치는 목록 끝이다. */
+    /**
+     * 대상 목록의 길이로 위치를 검증하고 영향받는 구간만 일괄 이동한다. 생략한 위치는 목록 끝이다.
+     */
     private boolean moveCard(Card card, Board targetBoard, CardStatus targetStatus, Integer requestedPosition) {
         Long sourceBoardId = card.getBoard().getId();
         CardStatus sourceStatus = card.getStatus();
