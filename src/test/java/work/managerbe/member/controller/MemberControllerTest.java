@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -23,6 +24,7 @@ import work.managerbe.global.exception.member.MemberException;
 import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.member.dto.MemberResponse;
+import work.managerbe.member.dto.MemberPageResponse;
 import work.managerbe.member.dto.request.MemberCreateRequest;
 import work.managerbe.member.service.MemberService;
 
@@ -55,6 +57,83 @@ class MemberControllerTest {
     @AfterEach
     void 인증_정리() {
         SecurityContextHolder.clearContext();
+    }
+
+    /** 목록의 명세 경로가 단건 경로와 구분되고 기본 페이지 및 전체 집계를 반환하는지 확인한다. */
+    @Test
+    void 멤버_목록은_기본_페이지와_명세의_응답_필드를_반환한다() throws Exception {
+        // given
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(TARGET, null, List.of()));
+        SecurityContextHolder.setContext(context);
+        var now = LocalDateTime.of(2026, 9, 14, 9, 0);
+        var member = new MemberResponse(7L, TARGET, 1L, MemberRole.MEMBER, now, null, now, now);
+        when(service.getAll(CREATOR, "TEST", TARGET, 0, 20))
+                .thenReturn(new MemberPageResponse(List.of(member), 0, 20, 1, 1));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/members", CREATOR))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].id").value(7))
+                .andExpect(jsonPath("$.items[0].userId").value(TARGET.toString()))
+                .andExpect(jsonPath("$.items[0].projectId").value(1))
+                .andExpect(jsonPath("$.items[0].role").value("MEMBER"))
+                .andExpect(jsonPath("$.items[0].joinedAt").value("2026-09-14T09:00:00"))
+                .andExpect(jsonPath("$.items[0].leftAt").isEmpty())
+                .andExpect(jsonPath("$.items[0].createdAt").value("2026-09-14T09:00:00"))
+                .andExpect(jsonPath("$.items[0].updatedAt").value("2026-09-14T09:00:00"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1));
+        verify(service).getAll(CREATOR, "TEST", TARGET, 0, 20);
+        verifyNoMoreInteractions(service);
+    }
+
+    @Test
+    void 멤버_목록의_페이지_조건과_빈_목록을_전달한다() throws Exception {
+        // given
+        when(service.getAll(CREATOR, "TEST", CREATOR, 2, 100))
+                .thenReturn(new MemberPageResponse(List.of(), 2, 100, 1, 1));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/members", CREATOR).param("page", "2").param("size", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.page").value(2))
+                .andExpect(jsonPath("$.size").value(100))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1));
+        verify(service).getAll(CREATOR, "TEST", CREATOR, 2, 100);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"page,-1", "page,abc", "page,2147483648", "size,0", "size,-1", "size,101", "size,abc"})
+    void 잘못된_목록_페이지_조건은_서비스_호출_없이_400을_반환한다(String name, String value) throws Exception {
+        // given / when / then
+        mvc.perform(get("/{userId}/TEST/members", CREATOR).param(name, value))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void 목록_조회_권한이_없으면_403을_반환한다() throws Exception {
+        // given
+        when(service.getAll(CREATOR, "TEST", CREATOR, 0, 20)).thenThrow(new AccessDeniedException("권한 없음"));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/members", CREATOR))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void 목록의_프로젝트가_없으면_404를_반환한다() throws Exception {
+        // given
+        when(service.getAll(CREATOR, "TEST", CREATOR, 0, 20))
+                .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/members", CREATOR))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PROJECT_NOT_FOUND"));
     }
 
     /** 생성자와 다른 인증 요청자를 전달하고 명세의 단건 경로와 응답 필드를 검증한다. */
