@@ -33,6 +33,30 @@ public class MemberServiceImpl implements MemberService {
     private final UserRepository userRepository;
 
     /**
+     * 읽기 전용 트랜잭션에서 프로젝트의 활성 참여를 확인하고 프로젝트에 속한 멤버만 조회한다.
+     * 대상의 탈퇴 여부는 제한하지 않으며 없는 ID와 다른 프로젝트의 ID는 멤버 없음으로 처리한다.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public MemberResponse get(UUID creatorId, String code, Long memberId, UUID requesterId) {
+        validateRequester(requesterId);
+        if (creatorId == null || code == null || code.isBlank()) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND);
+        }
+        Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        if (!memberRepository.existsByUserIdAndProjectId(requesterId, project.getId())) {
+            throw new AccessDeniedException("프로젝트의 활성 멤버만 멤버를 조회할 수 있습니다.");
+        }
+        if (memberId == null) {
+            throw MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND);
+        }
+        Member member = memberRepository.findByIdAndProject_Id(memberId, project.getId())
+                .orElseThrow(() -> MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND));
+        return MemberResponse.from(member);
+    }
+
+    /**
      * 프로젝트 행 잠금 안에서 활성 OWNER·ADMIN 권한과 중복 가입을 검사한다.
      * 탈퇴 이력이 있는 사용자도 중복으로 처리하며 저장 후 가입·감사 시각을 응답한다.
      */

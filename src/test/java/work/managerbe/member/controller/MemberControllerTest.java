@@ -14,17 +14,21 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import work.managerbe.global.exception.member.MemberErrorCode;
 import work.managerbe.global.exception.member.MemberException;
+import work.managerbe.global.exception.project.ProjectErrorCode;
+import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.member.dto.MemberResponse;
 import work.managerbe.member.dto.request.MemberCreateRequest;
 import work.managerbe.member.service.MemberService;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** 명세 경로, 역할 기본값, 인증 사용자 전달 및 공개 오류 응답을 검증한다. */
@@ -51,6 +55,79 @@ class MemberControllerTest {
     @AfterEach
     void 인증_정리() {
         SecurityContextHolder.clearContext();
+    }
+
+    /** 생성자와 다른 인증 요청자를 전달하고 명세의 단건 경로와 응답 필드를 검증한다. */
+    @ParameterizedTest
+    @ValueSource(strings = {"OWNER", "ADMIN", "MEMBER"})
+    void 멤버_단건_조회는_인증된_요청자를_전달하고_200과_멤버_정보를_반환한다(String role) throws Exception {
+        // given
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(TARGET, null, List.of()));
+        SecurityContextHolder.setContext(context);
+        var now = LocalDateTime.of(2026, 9, 14, 9, 0);
+        when(service.get(CREATOR, "TEST", 7L, TARGET)).thenReturn(
+                new MemberResponse(7L, TARGET, 1L, MemberRole.valueOf(role), now, null, now, now));
+        // when / then
+        mvc.perform(get("/{userId}/{code}/{memberId}", CREATOR, "TEST", 7))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(7))
+                .andExpect(jsonPath("$.userId").value(TARGET.toString()))
+                .andExpect(jsonPath("$.projectId").value(1))
+                .andExpect(jsonPath("$.role").value(role))
+                .andExpect(jsonPath("$.joinedAt").value("2026-09-14T09:00:00"))
+                .andExpect(jsonPath("$.leftAt").isEmpty())
+                .andExpect(jsonPath("$.createdAt").value("2026-09-14T09:00:00"))
+                .andExpect(jsonPath("$.updatedAt").value("2026-09-14T09:00:00"));
+        verify(service).get(CREATOR, "TEST", 7L, TARGET);
+    }
+
+    @Test
+    void 없는_멤버_조회는_404와_멤버_오류_코드를_반환한다() throws Exception {
+        // given
+        when(service.get(CREATOR, "TEST", 7L, CREATOR))
+                .thenThrow(MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/7", CREATOR))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+    }
+
+    @Test
+    void 없는_프로젝트의_멤버_조회는_404를_반환한다() throws Exception {
+        // given
+        when(service.get(CREATOR, "MISSING", 7L, CREATOR))
+                .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        // when / then
+        mvc.perform(get("/{userId}/MISSING/7", CREATOR))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PROJECT_NOT_FOUND"));
+    }
+
+    @Test
+    void 조회_권한이_없으면_403을_반환한다() throws Exception {
+        // given
+        when(service.get(CREATOR, "TEST", 7L, CREATOR)).thenThrow(new AccessDeniedException("권한 없음"));
+        // when / then
+        mvc.perform(get("/{userId}/TEST/7", CREATOR))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"abc", "9223372036854775808"})
+    void 잘못된_멤버_ID_형식은_서비스_호출_없이_400을_반환한다(String memberId) throws Exception {
+        // given / when / then
+        mvc.perform(get("/{userId}/TEST/{memberId}", CREATOR, memberId))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void 조회_경로의_사용자_ID가_UUID가_아니면_400을_반환한다() throws Exception {
+        // given / when / then
+        mvc.perform(get("/invalid/TEST/7")).andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
     }
 
     @ParameterizedTest
