@@ -47,9 +47,10 @@ public class BoardController {
             @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
             @AuthenticationPrincipal UUID requesterId,
             @RequestParam(name = "page", defaultValue = "0") @Min(0) int page,
-            @RequestParam(name = "size", defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size
+            @RequestParam(name = "size", defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size,
+            @RequestParam(name = "completed", defaultValue = "false") boolean completed
     ) {
-        return ResponseEntity.ok(boardService.getAll(creatorId, code, requesterId, page, size));
+        return ResponseEntity.ok(boardService.getAll(creatorId, code, requesterId, page, size, completed));
     }
     /**
      * 요청 배열의 순서대로 프로젝트 보드를 재배치하고 전달된 이름을 함께 수정한다.
