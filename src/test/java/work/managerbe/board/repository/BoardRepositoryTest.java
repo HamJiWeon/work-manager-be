@@ -16,7 +16,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.request.BoardCreateRequest;
-import work.managerbe.board.dto.response.BoardResponse;
 import work.managerbe.board.dto.response.BoardProgressResponse;
 import work.managerbe.board.dto.request.BoardUpdateItem;
 import work.managerbe.board.dto.request.BoardUpdateRequest;
