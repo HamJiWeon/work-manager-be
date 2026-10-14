@@ -1,21 +1,26 @@
 package work.managerbe.board.service;
 
-import java.util.UUID;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 import org.springframework.data.domain.PageRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Slice;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.request.BoardCreateRequest;
+import work.managerbe.board.dto.response.BoardProgressResponse;
+import work.managerbe.board.dto.response.BoardProgressRow;
 import work.managerbe.board.dto.response.BoardResponse;
 import work.managerbe.board.dto.request.BoardUpdateRequest;
 import work.managerbe.board.dto.request.BoardUpdateItem;
 import work.managerbe.board.dto.response.BoardSliceResponse;
 import work.managerbe.board.repository.BoardRepository;
+import work.managerbe.card.domain.CardStatus;
 import work.managerbe.card.repository.CardRepository;
 import work.managerbe.global.exception.board.BoardErrorCode;
 import work.managerbe.global.exception.board.BoardException;
@@ -36,6 +41,8 @@ import work.managerbe.member.repository.MemberRepository;
 @RequiredArgsConstructor
 @Transactional
 public class BoardServiceImpl implements BoardService {
+
+    private static final double PERCENTAGE_MULTIPLIER = 100.0;
 
     private final BoardRepository boardRepository;
     private final CardRepository cardRepository;
@@ -90,8 +97,8 @@ public class BoardServiceImpl implements BoardService {
      * @throws IllegalArgumentException 페이지 번호가 음수이거나 조회 크기가 1 미만인 경우
      */
     @Override
-    @Transactional(readOnly = true)
-    public BoardSliceResponse getAll(UUID creatorId, String code, UUID requesterId, int page, int size) {
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public BoardSliceResponse getAll(UUID creatorId, String code, UUID requesterId, int page, int size, boolean completed) {
         validateUserExists(requesterId);
         validateCreatorId(creatorId);
         validateProjectCode(code);
@@ -103,8 +110,20 @@ public class BoardServiceImpl implements BoardService {
             throw new AccessDeniedException("프로젝트의 활성 멤버만 보드를 조회할 수 있습니다.");
         }
 
-        return BoardSliceResponse.from(boardRepository.findAllByProjectId(
-                project.getId(), PageRequest.of(page, size)));
+        Slice<Board> boards = boardRepository.findByProjectIdAndCompleted(
+                project.getId(), completed, CardStatus.DONE, PageRequest.of(page, size));
+
+        List<Long> boardIds = boards.getContent().stream().map(Board::getId).toList();
+        List<BoardProgressRow> progressRows = boardIds.isEmpty() ? List.of()
+                : cardRepository.countProgressByBoardIds(boardIds, CardStatus.DONE);
+
+        Map<Long, BoardProgressRow> progressByBoardId = progressRows.stream().collect(Collectors.toMap(
+                        BoardProgressRow::boardId, Function.identity()));
+
+        Slice<BoardProgressResponse> responses = boards.map(
+                board -> toResponseWithProgress(board, progressByBoardId.get(board.getId())));
+
+        return BoardSliceResponse.from(responses);
     }
 
     /**
@@ -270,4 +289,15 @@ public class BoardServiceImpl implements BoardService {
         }
     }
 
+    /**
+     * 일괄 조회한 카드 집계로 완료율을 계산하며,
+     * 집계 결과가 없는 보드는 카드가 없는 것으로 처리한다.
+     */
+    private BoardProgressResponse toResponseWithProgress(Board board, BoardProgressRow progress) {
+        long totalCount = progress == null ? 0L : progress.totalCardCount();
+        long doneCount = progress == null ? 0L : progress.doneCardCount();
+
+        double completionRate = totalCount == 0L ? 0.0 : doneCount * PERCENTAGE_MULTIPLIER / totalCount;
+        return BoardProgressResponse.from(board, completionRate);
+    }
 }
