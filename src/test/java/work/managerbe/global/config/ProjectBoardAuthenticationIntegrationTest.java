@@ -108,7 +108,7 @@ class ProjectBoardAuthenticationIntegrationTest {
         UUID requesterId = UUID.randomUUID();
         BoardSliceResponse response = new BoardSliceResponse(List.of(), 0, 20, false);
 
-        when(boardService.getAll(creatorId, PROJECT_CODE, requesterId, 0, 20))
+        when(boardService.getAll(creatorId, PROJECT_CODE, requesterId, 0, 20, false))
                 .thenReturn(response);
 
         // when & then
@@ -120,7 +120,7 @@ class ProjectBoardAuthenticationIntegrationTest {
                 .andExpect(jsonPath("$.size").value(20))
                 .andExpect(jsonPath("$.hasNext").value(false));
 
-        verify(boardService).getAll(creatorId, PROJECT_CODE, requesterId, 0, 20);
+        verify(boardService).getAll(creatorId, PROJECT_CODE, requesterId, 0, 20, false);
     }
 
     private String bearerToken(UUID requesterId) {

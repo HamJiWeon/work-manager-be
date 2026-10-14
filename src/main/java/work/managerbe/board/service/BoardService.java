@@ -16,7 +16,7 @@ public interface BoardService {
     /**
      * 활성 멤버의 프로젝트 보드를 정렬 순서와 ID 오름차순으로 페이지 조회한다.
      */
-    BoardSliceResponse getAll(UUID creatorId, String code, UUID requesterId, int page, int size);
+    BoardSliceResponse getAll(UUID creatorId, String code, UUID requesterId, int page, int size, boolean completed);
 
     /**
      * 활성 멤버가 전달한 배열 순서대로 전체 보드를 재배치하고 이름을 함께 수정한다.

@@ -2,6 +2,11 @@ package work.managerbe.board.service;
 
 import work.managerbe.user.domain.User;
 import java.util.Collections;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.SliceImpl;
+import work.managerbe.board.dto.response.BoardProgressRow;
+import work.managerbe.board.dto.response.BoardProgressResponse;
+import work.managerbe.card.domain.CardStatus;
 import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
@@ -297,7 +302,7 @@ class BoardServiceImplTest {
         when(projectRepository.findByCreator_IdAndCode(CREATOR_ID, PROJECT_CODE)).thenReturn(Optional.of(project));
 
         // when / then
-        assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 0, 20))
+        assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 0, 20, false))
                 .isInstanceOf(AccessDeniedException.class);
         verify(memberRepository).existsByUserIdAndProjectId(USER_ID, PROJECT_ID);
         verify(projectRepository, never()).findByCreatorIdAndCodeForUpdate(any(), any());
@@ -307,7 +312,7 @@ class BoardServiceImplTest {
     @Test
     void 목록_조회시_없는_사용자는_거절한다() {
         // given / when / then
-        assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 0, 20))
+        assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 0, 20, false))
                 .isInstanceOfSatisfying(UserException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
         verifyNoInteractions(projectRepository, memberRepository, boardRepository);
@@ -319,7 +324,7 @@ class BoardServiceImplTest {
         when(userRepository.existsById(USER_ID)).thenReturn(true);
 
         // when / then
-        assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 0, 20))
+        assertThatThrownBy(() -> service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 0, 20, false))
                 .isInstanceOfSatisfying(ProjectException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
         verifyNoInteractions(memberRepository, boardRepository);
@@ -332,7 +337,7 @@ class BoardServiceImplTest {
         // when / then
         assertThatThrownBy(() -> service.create(null, PROJECT_CODE, USER_ID, new BoardCreateRequest("보드")))
                 .isInstanceOf(ProjectException.class);
-        assertThatThrownBy(() -> service.getAll(null, PROJECT_CODE, USER_ID, 0, 20))
+        assertThatThrownBy(() -> service.getAll(null, PROJECT_CODE, USER_ID, 0, 20, false))
                 .isInstanceOf(ProjectException.class);
         verifyNoInteractions(projectRepository, memberRepository, boardRepository);
     }
@@ -432,5 +437,72 @@ class BoardServiceImplTest {
         verify(second).synchronizeSortOrder(0);
         verify(first).synchronizeSortOrder(1);
         verify(boardRepository).flush();
+    }
+    /**
+     * 집계 결과의 순서와 관계없이 ID로 완료율을 매핑하고 페이지 정보를 유지한다.
+     */
+    @Test
+    void 카드_수를_한번에_집계하여_보드별_완료율을_반환한다() {
+        // given
+        Project project = mock(Project.class);
+        when(project.getId()).thenReturn(PROJECT_ID);
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCreator_IdAndCode(CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(project));
+        when(memberRepository.existsByUserIdAndProjectId(USER_ID, PROJECT_ID)).thenReturn(true);
+        Board first = mock(Board.class);
+        Board second = mock(Board.class);
+        Board empty = mock(Board.class);
+        when(first.getId()).thenReturn(10L);
+        when(second.getId()).thenReturn(20L);
+        when(empty.getId()).thenReturn(30L);
+        when(first.getProject()).thenReturn(project);
+        when(second.getProject()).thenReturn(project);
+        when(empty.getProject()).thenReturn(project);
+        PageRequest pageable = PageRequest.of(1, 3);
+        when(boardRepository.findByProjectIdAndCompleted(PROJECT_ID, false, CardStatus.DONE, pageable))
+                .thenReturn(new SliceImpl<>(List.of(first, second, empty), pageable, true));
+        when(cardRepository.countProgressByBoardIds(List.of(10L, 20L, 30L), CardStatus.DONE))
+                .thenReturn(List.of(new BoardProgressRow(20L, 4L, 3L),
+                        new BoardProgressRow(10L, 4L, 2L)));
+
+        // when
+        var response = service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 1, 3, false);
+
+        // then
+        assertThat(response.items()).extracting(BoardProgressResponse::id).containsExactly(10L, 20L, 30L);
+        assertThat(response.items()).extracting(BoardProgressResponse::completionRate)
+                .containsExactly(50.0, 75.0, 0.0);
+        assertThat(response.page()).isEqualTo(1);
+        assertThat(response.size()).isEqualTo(3);
+        assertThat(response.hasNext()).isTrue();
+        verify(cardRepository).countProgressByBoardIds(List.of(10L, 20L, 30L), CardStatus.DONE);
+        verifyNoMoreInteractions(cardRepository);
+    }
+
+    /**
+     * 완료 목록 요청의 빈 페이지에서는 불필요한 카드 집계 조회를 생략한다.
+     */
+    @Test
+    void 빈_완료_목록은_카드_집계없이_반환한다() {
+        // given
+        Project project = mock(Project.class);
+        when(project.getId()).thenReturn(PROJECT_ID);
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(projectRepository.findByCreator_IdAndCode(CREATOR_ID, PROJECT_CODE))
+                .thenReturn(Optional.of(project));
+        when(memberRepository.existsByUserIdAndProjectId(USER_ID, PROJECT_ID)).thenReturn(true);
+        PageRequest pageable = PageRequest.of(2, 20);
+        when(boardRepository.findByProjectIdAndCompleted(PROJECT_ID, true, CardStatus.DONE, pageable))
+                .thenReturn(new SliceImpl<>(List.of(), pageable, false));
+
+        // when
+        var response = service.getAll(CREATOR_ID, PROJECT_CODE, USER_ID, 2, 20, true);
+
+        // then
+        assertThat(response.items()).isEmpty();
+        assertThat(response.page()).isEqualTo(2);
+        assertThat(response.hasNext()).isFalse();
+        verifyNoInteractions(cardRepository);
     }
 }
