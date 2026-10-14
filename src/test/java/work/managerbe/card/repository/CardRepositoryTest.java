@@ -15,6 +15,8 @@ import work.managerbe.project.domain.Project;
 import work.managerbe.user.domain.User;
 
 import java.time.LocalDate;
+import java.util.List;
+import work.managerbe.board.dto.response.BoardProgressRow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -211,4 +213,31 @@ class CardRepositoryTest {
         assertThat(cardRepository.findById(CARD_ID).orElseThrow().getSortOrder()).isZero();
     }
 
+    /**
+     * 여러 보드의 집계를 한 번에 반환하고 카드가 없거나 요청하지 않은 보드는 제외한다.
+     */
+    @Test
+    void 요청한_보드들의_전체와_완료_카드_수를_집계한다() {
+        // given
+        Board empty = entityManager.merge(Board.create("빈 보드", project));
+        Board completed = entityManager.merge(Board.create("완료 보드", project));
+        Board excluded = entityManager.merge(Board.create("제외 보드", project));
+        entityManager.persist(Card.create(user, USERNAME, TITLE, CONTENT, CardStatus.DONE,
+                member, project, board, null, null));
+        entityManager.persist(Card.create(user, USERNAME, TITLE, CONTENT, CardStatus.DONE,
+                member, project, completed, null, null));
+        entityManager.persist(Card.create(user, USERNAME, TITLE, CONTENT, CardStatus.DONE,
+                member, project, excluded, null, null));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        List<BoardProgressRow> result = cardRepository.countProgressByBoardIds(
+                List.of(board.getId(), empty.getId(), completed.getId()), CardStatus.DONE);
+
+        // then
+        assertThat(result).containsExactlyInAnyOrder(
+                new BoardProgressRow(board.getId(), 2L, 1L),
+                new BoardProgressRow(completed.getId(), 1L, 1L));
+    }
 }

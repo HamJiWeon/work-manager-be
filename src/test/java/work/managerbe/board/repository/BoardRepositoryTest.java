@@ -1,6 +1,8 @@
 package work.managerbe.board.repository;
 
 import work.managerbe.member.domain.MemberRole;
+import work.managerbe.card.domain.Card;
+import work.managerbe.card.domain.CardStatus;
 import jakarta.persistence.EntityManager;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.board.domain.Board;
 import work.managerbe.board.dto.request.BoardCreateRequest;
 import work.managerbe.board.dto.response.BoardResponse;
+import work.managerbe.board.dto.response.BoardProgressResponse;
 import work.managerbe.board.dto.request.BoardUpdateItem;
 import work.managerbe.board.dto.request.BoardUpdateRequest;
 import work.managerbe.board.service.BoardService;
@@ -316,21 +319,21 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when
-        var firstPage = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 0, 2);
-        var secondPage = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 1, 2);
-        var outsidePage = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 2, 2);
+        var firstPage = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 0, 2, false);
+        var secondPage = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 1, 2, false);
+        var outsidePage = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 2, 2, false);
 
         // then
-        assertThat(firstPage.items()).extracting(BoardResponse::id)
+        assertThat(firstPage.items()).extracting(BoardProgressResponse::id)
                 .containsExactly(first.getId(), second.getId());
-        assertThat(firstPage.items()).extracting(BoardResponse::sortOrder)
+        assertThat(firstPage.items()).extracting(BoardProgressResponse::sortOrder)
                 .containsExactly(0, 1);
-        assertThat(firstPage.items()).extracting(BoardResponse::projectId)
+        assertThat(firstPage.items()).extracting(BoardProgressResponse::projectId)
                 .containsOnly(project.getId());
         assertThat(firstPage.page()).isZero();
         assertThat(firstPage.size()).isEqualTo(2);
         assertThat(firstPage.hasNext()).isTrue();
-        assertThat(secondPage.items()).extracting(BoardResponse::id)
+        assertThat(secondPage.items()).extracting(BoardProgressResponse::id)
                 .containsExactly(third.getId());
         assertThat(secondPage.page()).isEqualTo(1);
         assertThat(secondPage.hasNext()).isFalse();
@@ -350,7 +353,7 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when
-        var response = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 0, 20);
+        var response = boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 0, 20, false);
 
         // then
         assertThat(response.items()).isEmpty();
@@ -371,7 +374,7 @@ class BoardRepositoryTest {
         entityManager.clear();
 
         // when / then
-        assertThatThrownBy(() -> boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 0, 20))
+        assertThatThrownBy(() -> boardService.getAll(project.getCreator().getId(), project.getCode(), user.getId(), 0, 20, false))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -398,19 +401,19 @@ class BoardRepositoryTest {
         var secondBoard = boardService.create(secondCreator.getId(), "WORK", requester.getId(), new BoardCreateRequest("둘째 보드"));
         entityManager.flush();
         entityManager.clear();
-        var firstList = boardService.getAll(firstCreator.getId(), "WORK", requester.getId(), 0, 20);
-        var secondList = boardService.getAll(secondCreator.getId(), "WORK", requester.getId(), 0, 20);
+        var firstList = boardService.getAll(firstCreator.getId(), "WORK", requester.getId(), 0, 20, false);
+        var secondList = boardService.getAll(secondCreator.getId(), "WORK", requester.getId(), 0, 20, false);
 
         // then
         assertThat(firstBoard.projectId()).isEqualTo(first.getId());
         assertThat(secondBoard.projectId()).isEqualTo(second.getId());
-        assertThat(firstList.items()).extracting(BoardResponse::id).containsExactly(firstBoard.id());
-        assertThat(secondList.items()).extracting(BoardResponse::id).containsExactly(secondBoard.id());
+        assertThat(firstList.items()).extracting(BoardProgressResponse::id).containsExactly(firstBoard.id());
+        assertThat(secondList.items()).extracting(BoardProgressResponse::id).containsExactly(secondBoard.id());
         assertThat(firstBoard.sortOrder()).isZero();
         assertThat(secondBoard.sortOrder()).isZero();
         assertThatThrownBy(() -> boardService.create(firstCreator.getId(), "WORK", secondCreator.getId(), new BoardCreateRequest("거절")))
                 .isInstanceOf(AccessDeniedException.class);
-        assertThatThrownBy(() -> boardService.getAll(firstCreator.getId(), "WORK", secondCreator.getId(), 0, 20))
+        assertThatThrownBy(() -> boardService.getAll(firstCreator.getId(), "WORK", secondCreator.getId(), 0, 20, false))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -527,5 +530,81 @@ class BoardRepositoryTest {
         User creator = User.create("생성자", "creator@example.com", null);
         entityManager.persist(creator);
         return creator;
+    }
+    /**
+     * 실제 카드 집계로 완료 여부를 분류한 뒤 각 목록을 기존 보드 순서로 페이징한다.
+     */
+    @Test
+    void 완료와_미완료_보드를_분리하여_완료율과_페이지를_반환한다() {
+        // given
+        User owner = creator();
+        Project project = Project.create(owner, "PROGRESS", "완료율", null);
+        entityManager.persist(project);
+        Member member = Member.create(owner, project, MemberRole.OWNER);
+        entityManager.persist(member);
+        Board doneFirst = boardRepository.save(project.addBoard("첫 완료"));
+        Board partial = boardRepository.save(project.addBoard("진행"));
+        Board doneSecond = boardRepository.save(project.addBoard("둘째 완료"));
+        Board empty = boardRepository.save(project.addBoard("빈 보드"));
+        Board notStarted = boardRepository.save(project.addBoard("시작 전"));
+        entityManager.persist(Card.create(owner, "담당자", "완료", "내용", CardStatus.DONE,
+                member, project, doneFirst, null, null));
+        entityManager.persist(Card.create(owner, "담당자", "완료", "내용", CardStatus.DONE,
+                member, project, partial, null, null));
+        entityManager.persist(Card.create(owner, "담당자", "진행", "내용", CardStatus.IN_PROGRESS,
+                member, project, partial, null, null));
+        entityManager.persist(Card.create(owner, "담당자", "완료", "내용", CardStatus.DONE,
+                member, project, doneSecond, null, null));
+        entityManager.persist(Card.create(owner, "담당자", "시작 전", "내용", CardStatus.NOT_STARTED,
+                member, project, notStarted, null, null));
+        Project otherProject = Project.create(owner, "OTHER_PROGRESS", "다른 프로젝트", null);
+        entityManager.persist(otherProject);
+        Member otherMember = Member.create(owner, otherProject, MemberRole.OWNER);
+        entityManager.persist(otherMember);
+        Board other = boardRepository.save(otherProject.addBoard("다른 완료 보드"));
+        entityManager.persist(Card.create(owner, "담당자", "완료", "내용", CardStatus.DONE,
+                otherMember, otherProject, other, null, null));
+        entityManager.flush();
+        entityManager.clear();
+
+        // when
+        var activeFirst = boardService.getAll(owner.getId(), "PROGRESS", owner.getId(), 0, 2, false);
+        var activeSecond = boardService.getAll(owner.getId(), "PROGRESS", owner.getId(), 1, 2, false);
+        var completedFirst = boardService.getAll(owner.getId(), "PROGRESS", owner.getId(), 0, 1, true);
+        var completedSecond = boardService.getAll(owner.getId(), "PROGRESS", owner.getId(), 1, 1, true);
+
+        // then
+        assertThat(activeFirst.items()).extracting(BoardProgressResponse::id)
+                .containsExactly(partial.getId(), empty.getId());
+        assertThat(activeFirst.items()).extracting(BoardProgressResponse::completionRate)
+                .containsExactly(50.0, 0.0);
+        assertThat(activeFirst.hasNext()).isTrue();
+        assertThat(activeSecond.items()).extracting(BoardProgressResponse::id)
+                .containsExactly(notStarted.getId());
+        assertThat(activeSecond.items().getFirst().completionRate()).isZero();
+        assertThat(activeSecond.hasNext()).isFalse();
+        assertThat(completedFirst.items()).extracting(BoardProgressResponse::id)
+                .containsExactly(doneFirst.getId());
+        assertThat(completedFirst.items().getFirst().completionRate()).isEqualTo(100.0);
+        assertThat(completedFirst.hasNext()).isTrue();
+        assertThat(completedSecond.items()).extracting(BoardProgressResponse::id)
+                .containsExactly(doneSecond.getId());
+        assertThat(completedSecond.hasNext()).isFalse();
+
+        // when
+        Card completedCard = entityManager.createQuery(
+                        "select c from Card c where c.board.id = :boardId", Card.class)
+                .setParameter("boardId", doneFirst.getId()).getSingleResult();
+        completedCard.move(completedCard.getBoard(), CardStatus.IN_PROGRESS, 0);
+        entityManager.flush();
+        entityManager.clear();
+        var changed = boardService.getAll(owner.getId(), "PROGRESS", owner.getId(), 0, 20, false);
+        var remaining = boardService.getAll(owner.getId(), "PROGRESS", owner.getId(), 0, 20, true);
+
+        // then
+        assertThat(changed.items()).extracting(BoardProgressResponse::id)
+                .containsExactly(doneFirst.getId(), partial.getId(), empty.getId(), notStarted.getId());
+        assertThat(changed.items().getFirst().completionRate()).isZero();
+        assertThat(remaining.items()).extracting(BoardProgressResponse::id).containsExactly(doneSecond.getId());
     }
 }

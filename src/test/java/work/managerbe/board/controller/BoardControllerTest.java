@@ -22,6 +22,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import work.managerbe.board.dto.request.BoardCreateRequest;
 import work.managerbe.board.dto.response.BoardResponse;
+import work.managerbe.board.dto.response.BoardProgressResponse;
 import work.managerbe.board.service.BoardService;
 import work.managerbe.global.exception.board.BoardErrorCode;
 import work.managerbe.global.exception.board.BoardException;
@@ -150,8 +151,8 @@ class BoardControllerTest {
     void 목록_조회는_기본_페이지와_보드_정보를_반환한다() throws Exception {
         // given
         LocalDateTime now = LocalDateTime.of(2026, 9, 14, 9, 0);
-        var board = new BoardResponse(2L, 1L, "Board API", 1, now, now);
-        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 20))
+        BoardProgressResponse board = new BoardProgressResponse(2L, 1L, "Board API", 1, 50.0, now, now);
+        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 20, false))
                 .thenReturn(new BoardSliceResponse(List.of(board), 0, 20, true));
 
         // when / then
@@ -161,6 +162,7 @@ class BoardControllerTest {
                 .andExpect(jsonPath("$.items[0].projectId").value(1))
                 .andExpect(jsonPath("$.items[0].name").value("Board API"))
                 .andExpect(jsonPath("$.items[0].sortOrder").value(1))
+                .andExpect(jsonPath("$.items[0].completionRate").value(50.0))
                 .andExpect(jsonPath("$.items[0].createdAt").value("2026-09-14T09:00:00"))
                 .andExpect(jsonPath("$.items[0].updatedAt").value("2026-09-14T09:00:00"))
                 .andExpect(jsonPath("$.page").value(0))
@@ -173,7 +175,7 @@ class BoardControllerTest {
     @Test
     void 목록_조회는_요청한_페이지와_크기를_전달한다() throws Exception {
         // given
-        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 2, 5))
+        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 2, 5, false))
                 .thenReturn(new BoardSliceResponse(List.of(), 2, 5, false));
 
         // when / then
@@ -184,7 +186,7 @@ class BoardControllerTest {
                 .andExpect(jsonPath("$.page").value(2))
                 .andExpect(jsonPath("$.size").value(5))
                 .andExpect(jsonPath("$.hasNext").value(false));
-        verify(service).getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 2, 5);
+        verify(service).getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 2, 5, false);
     }
 
     /**
@@ -193,7 +195,7 @@ class BoardControllerTest {
     @Test
     void 최대_크기_100개_요청은_허용한다() throws Exception {
         // given
-        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 100))
+        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 100, false))
                 .thenReturn(new BoardSliceResponse(List.of(), 0, 100, false));
 
         // when / then
@@ -201,7 +203,7 @@ class BoardControllerTest {
                         .param("size", "100"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.size").value(100));
-        verify(service).getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 100);
+        verify(service).getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 100, false);
     }
 
     /**
@@ -220,7 +222,7 @@ class BoardControllerTest {
     @Test
     void 목록_조회_권한이_없으면_403을_반환한다() throws Exception {
         // given
-        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 20))
+        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 20, false))
                 .thenThrow(new AccessDeniedException("활성 멤버가 아닙니다."));
 
         // when / then
@@ -231,7 +233,7 @@ class BoardControllerTest {
     @Test
     void 목록_조회_프로젝트가_없으면_404를_반환한다() throws Exception {
         // given
-        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 20))
+        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 0, 20, false))
                 .thenThrow(ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
 
         // when / then
@@ -293,5 +295,25 @@ class BoardControllerTest {
     @org.junit.jupiter.api.AfterEach
     void 인증_정리() {
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+    /**
+     * 완료 목록 필터와 독립적인 페이지 입력 및 완료율 JSON을 검증한다.
+     */
+    @Test
+    void 완료_목록_요청은_완료_조건과_페이지를_전달한다() throws Exception {
+        // given
+        LocalDateTime now = LocalDateTime.of(2026, 10, 14, 9, 0);
+        BoardProgressResponse board = new BoardProgressResponse(3L, 1L, "완료", 2, 100.0, now, now);
+        when(service.getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 1, 5, true))
+                .thenReturn(new BoardSliceResponse(List.of(board), 1, 5, false));
+
+        // when / then
+        mvc.perform(get("/{userId}/{code}/boards", USER_ID, PROJECT_CODE)
+                        .param("completed", "true").param("page", "1").param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].completionRate").value(100.0))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.hasNext").value(false));
+        verify(service).getAll(USER_ID, PROJECT_CODE, REQUESTER_ID, 1, 5, true);
     }
 }
