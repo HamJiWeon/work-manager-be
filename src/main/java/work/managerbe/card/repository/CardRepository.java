@@ -3,6 +3,8 @@ package work.managerbe.card.repository;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.List;
+
+import work.managerbe.board.dto.response.BoardProgressRow;
 import work.managerbe.card.domain.CardStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -52,5 +54,22 @@ public interface CardRepository extends JpaRepository<Card, Long>, CardQueryRepo
                    @Param("excludedCardId") Long excludedCardId,
                    @Param("startPosition") int startPosition, @Param("endPosition") int endPosition,
                    @Param("offset") int offset, @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
+     * 지정된 보드들의 전체 카드 수와 완료 카드 수를 보드별로 집계한다.
+     */
+    @Query("""
+        select new work.managerbe.board.dto.response.BoardProgressRow(
+            c.board.id,
+            count(c.id),
+            sum(case when c.status = :doneStatus then 1L else 0L end)
+        )
+        from Card c
+        where c.board.id in :boardIds
+        group by c.board.id
+        """)
+    List<BoardProgressRow> countProgressByBoardIds(
+            @Param("boardIds") List<Long> boardIds,
+            @Param("doneStatus") CardStatus doneStatus);
 
 }
