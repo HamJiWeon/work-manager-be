@@ -90,6 +90,8 @@ public class BoardServiceImpl implements BoardService {
      * @param requesterId 목록 조회를 요청한 사용자 ID
      * @param page 0부터 시작하는 페이지 번호
      * @param size 조회할 보드 수. API의 최대 크기는 컨트롤러에서 검증한다.
+     * @param completed true이면 카드가 존재하고 모두 DONE인 완료 보드를 조회한다.
+     *                  false이면 카드가 없거나 미완료 카드가 있는 보드를 조회한다.
      * @return 보드 목록과 페이지 정보 및 다음 데이터 존재 여부
      * @throws UserException 요청자 ID가 없거나 사용자가 존재하지 않는 경우
      * @throws ProjectException 생성자 ID나 코드가 없거나 프로젝트를 찾을 수 없는 경우
