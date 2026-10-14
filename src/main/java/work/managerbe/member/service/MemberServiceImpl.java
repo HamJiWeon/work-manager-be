@@ -6,6 +6,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.global.exception.member.MemberErrorCode;
 import work.managerbe.global.exception.member.MemberException;
@@ -15,6 +16,7 @@ import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
 import work.managerbe.member.domain.Member;
 import work.managerbe.member.dto.MemberResponse;
+import work.managerbe.member.dto.MemberPageResponse;
 import work.managerbe.member.dto.request.MemberCreateRequest;
 import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.project.domain.Project;
@@ -31,6 +33,45 @@ public class MemberServiceImpl implements MemberService {
     private final MemberRepository memberRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+
+    /** 읽기 전용 트랜잭션에서 활성 참여를 확인하고 탈퇴자를 제외한 목록과 전체 개수를 반환한다. */
+    @Override
+    @Transactional(readOnly = true)
+    public MemberPageResponse getAll(UUID creatorId, String code, UUID requesterId, int page, int size) {
+        Project project = findReadableProject(creatorId, code, requesterId);
+        return MemberPageResponse.from(memberRepository.findAllByProject_IdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(
+                project.getId(), PageRequest.of(page, size)));
+    }
+
+    /**
+     * 읽기 전용 트랜잭션에서 프로젝트의 활성 참여를 확인하고 프로젝트에 속한 멤버만 조회한다.
+     * 대상의 탈퇴 여부는 제한하지 않으며 없는 ID와 다른 프로젝트의 ID는 멤버 없음으로 처리한다.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public MemberResponse get(UUID creatorId, String code, Long memberId, UUID requesterId) {
+        Project project = findReadableProject(creatorId, code, requesterId);
+        if (memberId == null) {
+            throw MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND);
+        }
+        Member member = memberRepository.findByIdAndProject_Id(memberId, project.getId())
+                .orElseThrow(() -> MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND));
+        return MemberResponse.from(member);
+    }
+
+    /** 단건과 목록 조회에서 생성자·코드로 프로젝트를 식별하고 요청자의 활성 참여를 검증한다. */
+    private Project findReadableProject(UUID creatorId, String code, UUID requesterId) {
+        validateRequester(requesterId);
+        if (creatorId == null || code == null || code.isBlank()) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND);
+        }
+        Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        if (!memberRepository.existsByUserIdAndProjectId(requesterId, project.getId())) {
+            throw new AccessDeniedException("프로젝트의 활성 멤버만 멤버를 조회할 수 있습니다.");
+        }
+        return project;
+    }
 
     /**
      * 프로젝트 행 잠금 안에서 활성 OWNER·ADMIN 권한과 중복 가입을 검사한다.
