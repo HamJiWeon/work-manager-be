@@ -52,7 +52,7 @@ class JwtAuthenticationSuccessHandlerTest {
 
         // then
         verify(authCookieService).addRefreshToken(response, tokenPair.refreshToken());
-        assertThat(response.getRedirectedUrl()).isEqualTo("/login/success");
+        assertThat(response.getRedirectedUrl()).isEqualTo("/login/success?status=LOGIN_COMPLETE");
         assertThat(request.getSession(false)).isNull();
     }
 
@@ -75,7 +75,47 @@ class JwtAuthenticationSuccessHandlerTest {
         // then
         verify(authCookieService).addRefreshToken(response, "refresh");
         assertThat(request.getSession(false)).isNull();
-        assertThat(response.getRedirectedUrl()).isEqualTo("/login/success");
+        assertThat(response.getRedirectedUrl()).isEqualTo("/login/success?status=LOGIN_COMPLETE");
+    }
+
+    /** 신규 소셜 계정은 토큰 발급과 회원 조회 없이 가입 필요 상태로 이동한다. */
+    @Test
+    void 신규_계정은_가입_필요_상태를_전달한다() throws Exception {
+        // given
+        var request = new MockHttpServletRequest();
+        request.getSession();
+        var response = new MockHttpServletResponse();
+        var principal = new InternalOAuth2User(null, mock(OAuth2User.class));
+        var authentication = new UsernamePasswordAuthenticationToken(principal, null, List.of());
+
+        // when
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        // then
+        assertThat(response.getRedirectedUrl()).isEqualTo("/login/success?status=SIGNUP_REQUIRED");
+        assertThat(request.getSession(false)).isNull();
+        verify(authCookieService).deleteRefreshToken(response);
+        verifyNoInteractions(userRepository, refreshTokenService);
+    }
+
+    /** OIDC 신규 계정도 가입 필요로 분기하며 기존 쿼리와 fragment를 보존한다. */
+    @Test
+    void 신규_OIDC_계정은_기존_status를_가입_필요로_교체한다() throws Exception {
+        // given
+        var customHandler = new JwtAuthenticationSuccessHandler(userRepository, refreshTokenService,
+                authCookieService, new OAuthRedirectProperties("/callback?from=web&status=old#result"));
+        var response = new MockHttpServletResponse();
+        var authentication = new UsernamePasswordAuthenticationToken(
+                new InternalOidcUser(null, mock(OidcUser.class)), null, List.of());
+
+        // when
+        customHandler.onAuthenticationSuccess(new MockHttpServletRequest(), response, authentication);
+
+        // then
+        assertThat(response.getRedirectedUrl())
+                .isEqualTo("/callback?from=web&status=SIGNUP_REQUIRED#result");
+        verifyNoInteractions(userRepository, refreshTokenService);
+        verify(authCookieService).deleteRefreshToken(response);
     }
 
     @Test
