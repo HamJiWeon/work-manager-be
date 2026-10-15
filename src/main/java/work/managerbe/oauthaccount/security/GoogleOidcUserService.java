@@ -32,7 +32,7 @@ public class GoogleOidcUserService implements OAuth2UserService<OidcUserRequest,
         OAuthUserInfo userInfo = validateUserInfo(oidcUser);
         var userId = oauthAccountService.findExisting(userInfo).map(User::getId).orElse(null);
 
-        return new InternalOidcUser(userId, oidcUser);
+        return new InternalOidcUser(userId, oidcUser, userInfo);
     }
 
     /**

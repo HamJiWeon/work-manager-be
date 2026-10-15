@@ -31,7 +31,7 @@ public class GithubOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
         OAuthUserInfo userInfo = validateUserInfo(oauth2User);
         var userId = oauthAccountService.findExisting(userInfo).map(User::getId).orElse(null);
 
-        return new InternalOAuth2User(userId, oauth2User);
+        return new InternalOAuth2User(userId, oauth2User, userInfo);
     }
 
     /**

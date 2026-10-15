@@ -5,12 +5,18 @@ import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
+import work.managerbe.oauthaccount.dto.request.OAuthUserInfo;
+
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 
 /** 기존 회원 ID와 소셜 인증 정보를 전달하며 신규 계정의 회원 ID는 null이다. */
-public record InternalOidcUser(UUID userId, OidcUser delegate) implements OidcUser {
+public record InternalOidcUser(UUID userId, OidcUser delegate, OAuthUserInfo userInfo) implements OidcUser {
+
+    public InternalOidcUser(UUID userId, OidcUser delegate) {
+        this(userId, delegate, null);
+    }
 
     public UUID getUserId() {
         return userId;

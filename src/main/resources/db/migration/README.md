@@ -30,3 +30,5 @@ Flyway API를 직접 호출하는 테스트에서는 필요한 DB 전용 경로�
 `V15__add_card_sort_order.sql`은 카드에 0 기반 `sort_order`를 추가한다. 기존 카드는 `ROW_NUMBER()`로 보드·상태별 ID 오름차순 위치를 계산한 뒤 `MERGE`로 일괄 갱신하며 음수 위치를 금지한다. 카드 생성·이동은 프로젝트 행 잠금 안에서 실행하여 순서 변경을 직렬화한다.
 
 H2는 V15 컬럼 추가 시에도 테이블을 재생성하므로 `db/vendor/h2/V16__restore_project_cascade_order_after_card_sort.sql`에서 V14와 같은 외래 키 순서 보정을 적용한다. PostgreSQL에서는 이 파일을 적용하지 않는다.
+
+`V17__create_pending_registrations.sql`은 정식 회원과 분리된 임시 소셜 가입 정보를 저장한다. 토큰 해시 유일 제약과 만료 시각 인덱스를 두고, 만료된 개인정보는 애플리케이션에서 주기적으로 삭제한다.

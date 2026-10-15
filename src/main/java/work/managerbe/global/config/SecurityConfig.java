@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.springframework.http.HttpMethod.POST;
+import static org.springframework.http.HttpMethod.DELETE;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 
 @Configuration
@@ -62,7 +63,8 @@ public class SecurityConfig {
         var authRequestMatcher = PathPatternRequestMatcher.withDefaults();
         var csrfRequestMatcher = new OrRequestMatcher(
                 authRequestMatcher.matcher(POST, "/auth/refresh"),
-                authRequestMatcher.matcher(POST, "/auth/logout"));
+                authRequestMatcher.matcher(POST, "/auth/logout"),
+                authRequestMatcher.matcher(DELETE, "/auth/registration"));
         var csrfTokenRequestHandler = new CsrfTokenRequestAttributeHandler();
 
         http

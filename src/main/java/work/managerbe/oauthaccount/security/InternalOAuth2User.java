@@ -3,12 +3,18 @@ package work.managerbe.oauthaccount.security;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 
+import work.managerbe.oauthaccount.dto.request.OAuthUserInfo;
+
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 
 /** 기존 회원 ID와 소셜 인증 정보를 전달하며 신규 계정의 회원 ID는 null이다. */
-public record InternalOAuth2User(UUID userId, OAuth2User delegate) implements OAuth2User {
+public record InternalOAuth2User(UUID userId, OAuth2User delegate, OAuthUserInfo userInfo) implements OAuth2User {
+
+    public InternalOAuth2User(UUID userId, OAuth2User delegate) {
+        this(userId, delegate, null);
+    }
 
     public UUID getUserId() {
         return userId;

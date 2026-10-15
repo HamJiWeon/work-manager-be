@@ -10,6 +10,10 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import work.managerbe.global.security.AuthCookieService;
 import work.managerbe.global.security.TokenPair;
 import work.managerbe.oauthaccount.service.RefreshTokenService;
+import work.managerbe.oauthaccount.service.PendingRegistrationService;
+import work.managerbe.oauthaccount.dto.request.OAuthUserInfo;
+import work.managerbe.oauthaccount.domain.OAuthProvider;
+import jakarta.servlet.http.Cookie;
 import work.managerbe.user.domain.User;
 import work.managerbe.user.repository.UserRepository;
 
@@ -23,12 +27,14 @@ import static org.mockito.Mockito.*;
 
 class JwtAuthenticationSuccessHandlerTest {
 
+    private final PendingRegistrationService pendingRegistrationService = mock(PendingRegistrationService.class);
+    private final OAuthUserInfo userInfo = new OAuthUserInfo(OAuthProvider.GOOGLE, "social-id", "신규", null, null);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
     private final AuthCookieService authCookieService = mock(AuthCookieService.class);
     private final OAuthRedirectProperties redirectProperties = new OAuthRedirectProperties("/login/success");
     private final JwtAuthenticationSuccessHandler handler = new JwtAuthenticationSuccessHandler(
-            userRepository, refreshTokenService, authCookieService, redirectProperties);
+            pendingRegistrationService, userRepository, refreshTokenService, authCookieService, redirectProperties);
 
     /**
      * OAuth 로그인 성공 시 토큰 쿠키를 발급하고 임시 세션을 제거한 뒤 프론트로 이동하는지 검증한다.
@@ -43,6 +49,7 @@ class JwtAuthenticationSuccessHandlerTest {
         when(refreshTokenService.issue(user)).thenReturn(tokenPair);
         var request = new MockHttpServletRequest();
         request.getSession();
+        request.setCookies(new Cookie(AuthCookieService.PENDING_REGISTRATION_COOKIE, "old-pending"));
         var response = new MockHttpServletResponse();
         var principal = new InternalOAuth2User(userId, mock(OAuth2User.class));
         var authentication = new UsernamePasswordAuthenticationToken(principal, null, List.of());
@@ -52,6 +59,8 @@ class JwtAuthenticationSuccessHandlerTest {
 
         // then
         verify(authCookieService).addRefreshToken(response, tokenPair.refreshToken());
+        verify(pendingRegistrationService).revoke("old-pending");
+        verify(authCookieService).deletePendingRegistration(response);
         assertThat(response.getRedirectedUrl()).isEqualTo("/login/success?status=LOGIN_COMPLETE");
         assertThat(request.getSession(false)).isNull();
     }
@@ -85,7 +94,9 @@ class JwtAuthenticationSuccessHandlerTest {
         var request = new MockHttpServletRequest();
         request.getSession();
         var response = new MockHttpServletResponse();
-        var principal = new InternalOAuth2User(null, mock(OAuth2User.class));
+        request.setCookies(new Cookie(AuthCookieService.PENDING_REGISTRATION_COOKIE, "old-pending"));
+        when(pendingRegistrationService.issue(userInfo, "old-pending")).thenReturn("new-pending");
+        var principal = new InternalOAuth2User(null, mock(OAuth2User.class), userInfo);
         var authentication = new UsernamePasswordAuthenticationToken(principal, null, List.of());
 
         // when
@@ -95,6 +106,8 @@ class JwtAuthenticationSuccessHandlerTest {
         assertThat(response.getRedirectedUrl()).isEqualTo("/login/success?status=SIGNUP_REQUIRED");
         assertThat(request.getSession(false)).isNull();
         verify(authCookieService).deleteRefreshToken(response);
+        verify(authCookieService).addPendingRegistration(response, "new-pending");
+        verify(pendingRegistrationService).issue(userInfo, "old-pending");
         verifyNoInteractions(userRepository, refreshTokenService);
     }
 
@@ -102,11 +115,11 @@ class JwtAuthenticationSuccessHandlerTest {
     @Test
     void 신규_OIDC_계정은_기존_status를_가입_필요로_교체한다() throws Exception {
         // given
-        var customHandler = new JwtAuthenticationSuccessHandler(userRepository, refreshTokenService,
+        var customHandler = new JwtAuthenticationSuccessHandler(pendingRegistrationService, userRepository, refreshTokenService,
                 authCookieService, new OAuthRedirectProperties("/callback?from=web&status=old#result"));
         var response = new MockHttpServletResponse();
         var authentication = new UsernamePasswordAuthenticationToken(
-                new InternalOidcUser(null, mock(OidcUser.class)), null, List.of());
+                new InternalOidcUser(null, mock(OidcUser.class), userInfo), null, List.of());
 
         // when
         customHandler.onAuthenticationSuccess(new MockHttpServletRequest(), response, authentication);
@@ -116,6 +129,7 @@ class JwtAuthenticationSuccessHandlerTest {
                 .isEqualTo("/callback?from=web&status=SIGNUP_REQUIRED#result");
         verifyNoInteractions(userRepository, refreshTokenService);
         verify(authCookieService).deleteRefreshToken(response);
+        verify(pendingRegistrationService).issue(userInfo, null);
     }
 
     @Test
