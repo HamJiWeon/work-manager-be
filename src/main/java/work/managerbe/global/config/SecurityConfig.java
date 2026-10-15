@@ -64,7 +64,8 @@ public class SecurityConfig {
         var csrfRequestMatcher = new OrRequestMatcher(
                 authRequestMatcher.matcher(POST, "/auth/refresh"),
                 authRequestMatcher.matcher(POST, "/auth/logout"),
-                authRequestMatcher.matcher(DELETE, "/auth/registration"));
+                authRequestMatcher.matcher(DELETE, "/auth/registration"),
+                authRequestMatcher.matcher(POST, "/auth/registration"));
         var csrfTokenRequestHandler = new CsrfTokenRequestAttributeHandler();
 
         http

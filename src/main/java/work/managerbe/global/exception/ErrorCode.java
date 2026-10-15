@@ -17,7 +17,8 @@ public enum ErrorCode implements ApiErrorCode {
     FORBIDDEN("GLB-003", HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
     RESOURCE_NOT_FOUND("GLB-004", HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다."),
     CONFLICT("GLB-005", HttpStatus.CONFLICT, "요청이 현재 리소스 상태와 충돌합니다."),
-    INTERNAL_SERVER_ERROR("GLB-006", HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");
+    INTERNAL_SERVER_ERROR("GLB-006", HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
+    REGISTRATION_TERMS_UNAVAILABLE("GLB-007", HttpStatus.SERVICE_UNAVAILABLE, "가입 약관이 준비되지 않았습니다.");
 
     private final String code;
     private final HttpStatus httpStatus;

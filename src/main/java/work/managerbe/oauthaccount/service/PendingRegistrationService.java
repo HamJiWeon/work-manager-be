@@ -9,6 +9,8 @@ import work.managerbe.oauthaccount.domain.PendingRegistration;
 import work.managerbe.oauthaccount.dto.request.OAuthUserInfo;
 import work.managerbe.oauthaccount.dto.response.PendingRegistrationResponse;
 import work.managerbe.oauthaccount.repository.PendingRegistrationRepository;
+import work.managerbe.oauthaccount.repository.RegistrationTermRepository;
+import work.managerbe.oauthaccount.dto.response.RegistrationTermResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -34,6 +36,7 @@ public class PendingRegistrationService {
     private final PendingRegistrationRepository repository;
     private final SecureRandom secureRandom;
     private final Clock clock;
+    private final RegistrationTermRepository termRepository;
 
     /** 같은 브라우저의 이전 임시 토큰을 폐기하고 새 인증 결과를 10분간 보관한다. */
     public String issue(OAuthUserInfo info, String previousToken) {
@@ -53,8 +56,17 @@ public class PendingRegistrationService {
             throw new BadCredentialsException("임시 가입 정보가 없습니다.");
         }
         return repository.findByTokenHashAndExpiresAtAfter(hash(token), LocalDateTime.now(clock))
-                .map(PendingRegistrationResponse::from)
+                .map(pending -> PendingRegistrationResponse.from(pending, termRepository.findByActiveTrueOrderByCodeAsc()
+                        .stream().map(RegistrationTermResponse::from).toList()))
                 .orElseThrow(() -> new BadCredentialsException("임시 가입 정보가 만료되었거나 유효하지 않습니다."));
+    }
+
+    /** 가입 완료용 행을 잠근 뒤 현재 시각으로 만료를 다시 확인한다. */
+    public PendingRegistration lock(String token) {
+        if (token == null || token.isBlank()) throw new BadCredentialsException("임시 가입 정보가 없습니다.");
+        return repository.findByTokenHash(hash(token))
+                .filter(pending -> pending.getExpiresAt().isAfter(LocalDateTime.now(clock)))
+                .orElseThrow(() -> new BadCredentialsException("유효한 임시 가입 정보가 없습니다."));
     }
 
     /** 취소나 기존 회원 로그인 시 이전 임시 가입 정보를 삭제한다. */

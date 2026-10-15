@@ -32,3 +32,5 @@ Flyway API를 직접 호출하는 테스트에서는 필요한 DB 전용 경로�
 H2는 V15 컬럼 추가 시에도 테이블을 재생성하므로 `db/vendor/h2/V16__restore_project_cascade_order_after_card_sort.sql`에서 V14와 같은 외래 키 순서 보정을 적용한다. PostgreSQL에서는 이 파일을 적용하지 않는다.
 
 `V17__create_pending_registrations.sql`은 정식 회원과 분리된 임시 소셜 가입 정보를 저장한다. 토큰 해시 유일 제약과 만료 시각 인덱스를 두고, 만료된 개인정보는 애플리케이션에서 주기적으로 삭제한다.
+
+`V18__create_registration_terms_and_consents.sql`은 약관 버전별 본문과 가입 동의 이력을 저장한다. 약관은 코드·버전 유일 제약을 두며, 동의 이력은 사용자·소셜 계정·약관 버전에 연결한다. 운영 약관 문구는 포함하지 않는다. 확정 본문은 후속 마이그레이션으로 등록하고 개정 시 기존 약관의 `active`만 해제한 뒤 새 버전을 추가한다. 이력에 연결된 과거 본문과 버전은 수정·삭제하지 않는다.

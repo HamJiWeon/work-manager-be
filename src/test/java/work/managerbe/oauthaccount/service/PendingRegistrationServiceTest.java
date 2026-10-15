@@ -18,7 +18,7 @@ import static org.mockito.Mockito.*;
 class PendingRegistrationServiceTest {
     private final PendingRegistrationRepository repository = mock(PendingRegistrationRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-15T00:00:00Z"), ZoneOffset.UTC);
-    private final PendingRegistrationService service = new PendingRegistrationService(repository, new SecureRandom(), clock);
+    private final PendingRegistrationService service = new PendingRegistrationService(repository, new SecureRandom(), clock, mock(work.managerbe.oauthaccount.repository.RegistrationTermRepository.class));
     private final OAuthUserInfo info = new OAuthUserInfo(OAuthProvider.GOOGLE, "subject", "신규", "new@example.com", null);
 
     @Test
