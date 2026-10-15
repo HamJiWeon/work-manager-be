@@ -12,6 +12,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
+import javax.sql.DataSource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
@@ -29,6 +31,7 @@ import work.managerbe.user.repository.UserRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.*;
@@ -42,6 +45,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Testcontainers
 class RegistrationCompletionIntegrationTest {
+    private static final int LOCK_WAIT_TIMEOUT_SECONDS = 15;
+    private static final int LOCK_POLL_INTERVAL_MILLIS = 20;
+    private final DataSource dataSource;
+    private final JdbcTemplate jdbc;
     @Container
     @ServiceConnection
     private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
@@ -69,7 +76,9 @@ class RegistrationCompletionIntegrationTest {
     RegistrationCompletionIntegrationTest(PendingRegistrationService pending, RegistrationCompletionService completion,
             PendingRegistrationRepository pendingRepository, RegistrationTermRepository terms, RegistrationConsentRepository consents,
             UserRepository users, OauthAccountRepository accounts, RefreshTokenRepository tokens, MockMvc mvc,
-            PlatformTransactionManager manager) {
+            PlatformTransactionManager manager, DataSource dataSource, JdbcTemplate jdbc) {
+        this.dataSource = dataSource;
+        this.jdbc = jdbc;
         this.pending = pending; this.completion = completion; this.pendingRepository = pendingRepository;
         this.terms = terms; this.consents = consents; this.users = users; this.accounts = accounts;
         this.tokens = tokens; this.mvc = mvc; this.transaction = new TransactionTemplate(manager);
@@ -221,6 +230,96 @@ class RegistrationCompletionIntegrationTest {
         assertThat(users.count()).isZero(); assertThat(accounts.count()).isZero();
         assertThat(consents.count()).isZero(); assertThat(tokens.count()).isZero();
         assertThat(pending.get(token).name()).isEqualTo("신규");
+    }
+
+    /** 개정 중 기존 행이 조회에서 사라져도 필수 동의를 누락한 가입을 거부한다. */
+    @Test
+    void 약관개정과_경합해도_필수동의_누락을_거절한다() throws Exception {
+        // given
+        var request = new RegistrationCompleteRequest(List.of(
+                new RegistrationCompleteRequest.Consent("privacy", "v1", true)));
+        // when / then
+        assertThatThrownBy(() -> reviseDuringSignup(request))
+                .isInstanceOfSatisfying(ExecutionException.class, failure ->
+                        assertThat(failure.getCause()).isInstanceOfSatisfying(CommonException.class,
+                                e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST)));
+        assertThat(users.count()).isZero(); assertThat(accounts.count()).isZero();
+        assertThat(consents.count()).isZero(); assertThat(tokens.count()).isZero();
+        assertThat(pendingRepository.count()).isEqualTo(1);
+    }
+
+    /** 충돌 후 재조회한 최신 버전과 제출 버전이 다르면 가입을 거부한다. */
+    @Test
+    void 약관개정과_경합하면_구버전_동의를_거절한다() throws Exception {
+        // given / when / then
+        assertThatThrownBy(() -> reviseDuringSignup(accepted))
+                .isInstanceOfSatisfying(ExecutionException.class, failure ->
+                        assertThat(failure.getCause()).isInstanceOfSatisfying(CommonException.class,
+                                e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.INVALID_REQUEST)));
+        assertThat(users.count()).isZero(); assertThat(consents.count()).isZero();
+        assertThat(tokens.count()).isZero();
+    }
+
+    /** 개정 충돌로 첫 트랜잭션을 롤백한 뒤 최신 동의로 재시도하면 한 번만 저장한다. */
+    @Test
+    void 약관개정과_경합해도_최신_동의는_재시도후_정확히한번_저장한다() throws Exception {
+        // given
+        var request = new RegistrationCompleteRequest(List.of(
+                new RegistrationCompleteRequest.Consent("privacy", "v1", true),
+                new RegistrationCompleteRequest.Consent("terms", "v2", true)));
+        // when
+        var result = reviseDuringSignup(request);
+        // then
+        assertThat(result.refreshToken()).isNotBlank();
+        assertThat(users.count()).isEqualTo(1); assertThat(accounts.count()).isEqualTo(1);
+        assertThat(consents.count()).isEqualTo(3); assertThat(tokens.count()).isEqualTo(1);
+        assertThat(pendingRepository.count()).isZero();
+        transaction.executeWithoutResult(status -> assertThat(consents.findAll())
+                .filteredOn(c -> c.getTerm().getCode().equals("terms"))
+                .singleElement().satisfies(c -> {
+                    assertThat(c.getTerm().getVersion()).isEqualTo("v2");
+                    assertThat(c.isAgreed()).isTrue();
+                }));
+    }
+
+    private work.managerbe.global.security.TokenPair reviseDuringSignup(RegistrationCompleteRequest request) throws Exception {
+        String token = pending.issue(info, null);
+        try (var revision = dataSource.getConnection()) {
+            revision.setAutoCommit(false);
+            try (var executor = Executors.newSingleThreadExecutor()) {
+                try {
+                    try (var update = revision.prepareStatement(
+                            "UPDATE registration_terms SET active = false WHERE code = 'terms' AND version = 'v1'")) {
+                        update.executeUpdate();
+                    }
+                    try (var insert = revision.prepareStatement("""
+                            INSERT INTO registration_terms(id,code,version,title,content,required,active)
+                            VALUES (?,'terms','v2','테스트 개정약관','테스트 개정본문',true,true)
+                            """)) {
+                        insert.setObject(1, UUID.randomUUID());
+                        insert.executeUpdate();
+                    }
+                    var signup = executor.submit(() -> completion.complete(token, request));
+                    boolean waiting = false;
+                    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(LOCK_WAIT_TIMEOUT_SECONDS);
+                    while (System.nanoTime() < deadline) {
+                        waiting = Boolean.TRUE.equals(jdbc.queryForObject("""
+                                SELECT EXISTS(SELECT 1 FROM pg_stat_activity
+                                WHERE wait_event_type = 'Lock' AND state = 'active'
+                                AND query LIKE '%registration_terms%'
+                                AND pid <> pg_backend_pid())
+                                """, Boolean.class));
+                        if (waiting || signup.isDone()) break;
+                        Thread.sleep(LOCK_POLL_INTERVAL_MILLIS);
+                    }
+                    assertThat(waiting).as("가입 조회가 실제 약관 행 잠금 대기에 진입해야 한다").isTrue();
+                    revision.commit();
+                    return signup.get(LOCK_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                } finally {
+                    revision.rollback();
+                }
+            }
+        }
     }
 
     @Test

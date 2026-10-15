@@ -2,8 +2,11 @@ package work.managerbe.oauthaccount.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import work.managerbe.global.exception.CommonException;
 import work.managerbe.global.exception.ErrorCode;
 import work.managerbe.global.security.TokenPair;
@@ -23,8 +26,8 @@ import java.util.Map;
 /** 가입 검증부터 회원·동의·로그인 토큰 저장과 임시 상태 소비까지 한 트랜잭션으로 처리한다. */
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class RegistrationCompletionService {
+    private static final int MAX_TRANSACTION_ATTEMPTS = 3;
     private final PendingRegistrationService pendingService;
     private final PendingRegistrationRepository pendingRepository;
     private final RegistrationTermRepository termRepository;
@@ -33,9 +36,26 @@ public class RegistrationCompletionService {
     private final OauthAccountRepository accountRepository;
     private final RefreshTokenService refreshTokenService;
     private final Clock clock;
+    private final PlatformTransactionManager transactionManager;
 
-    /** 임시 토큰을 잠가 중복 제출을 막고 서버 약관 버전으로 동의를 검증한 뒤 가입한다. */
+    /** 일관된 약관 목록으로 가입하며 개정과 충돌하면 롤백 후 독립 트랜잭션 전체를 최대 세 번 실행한다. */
     public TokenPair complete(String token, RegistrationCompleteRequest request) {
+        var transaction = new TransactionTemplate(transactionManager);
+        transaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        for (int attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt++) {
+            try {
+                return transaction.execute(status -> completeInTransaction(token, request));
+            } catch (ConcurrencyFailureException exception) {
+                if (attempt == MAX_TRANSACTION_ATTEMPTS) {
+                    throw CommonException.of(ErrorCode.CONFLICT);
+                }
+            }
+        }
+        throw CommonException.of(ErrorCode.CONFLICT);
+    }
+
+    private TokenPair completeInTransaction(String token, RegistrationCompleteRequest request) {
         PendingRegistration pending = pendingService.lock(token);
         List<RegistrationTerm> terms = termRepository.lockActiveTerms();
         Map<String, Boolean> choices = validate(terms, request);
