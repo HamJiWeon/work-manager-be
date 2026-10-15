@@ -30,6 +30,38 @@ class OauthAccountServiceImplTest {
     @InjectMocks
     private OauthAccountServiceImpl service;
 
+    /** 신규 소셜 계정 조회는 회원 생성 없이 빈 결과를 반환한다. */
+    @Test
+    void 신규_계정_조회는_회원을_생성하지_않는다() {
+        // given
+        var info = new OAuthUserInfo(OAuthProvider.GOOGLE, "new-id", "신규", null, null);
+
+        // when
+        var result = service.findExisting(info);
+
+        // then
+        assertThat(result).isEmpty();
+        verifyNoInteractions(oauthAccountCreator);
+    }
+
+    /** 기존 소셜 계정 조회는 연결된 회원을 반환한다. */
+    @Test
+    void 기존_계정_조회는_연결된_회원을_반환한다() {
+        // given
+        var info = new OAuthUserInfo(OAuthProvider.GITHUB, "existing-id", "기존", null, null);
+        var user = User.create("기존", null, null);
+        var account = OauthAccount.create(user, info.provider(), info.providerUserId());
+        when(oauthAccountRepository.findByProviderAndProviderUserId(info.provider(), info.providerUserId()))
+                .thenReturn(Optional.of(account));
+
+        // when
+        var result = service.findExisting(info);
+
+        // then
+        assertThat(result).contains(user);
+        verifyNoInteractions(oauthAccountCreator);
+    }
+
     /**
      * 처음 로그인한 OAuth 계정의 사용자와 계정 연결 정보를 함께 저장하는지 검증한다.
      */

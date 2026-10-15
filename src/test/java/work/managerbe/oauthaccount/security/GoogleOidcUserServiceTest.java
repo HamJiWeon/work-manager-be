@@ -19,6 +19,7 @@ import work.managerbe.oauthaccount.service.OauthAccountService;
 import work.managerbe.user.domain.User;
 
 import java.util.UUID;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,6 +48,22 @@ class GoogleOidcUserServiceTest {
     @InjectMocks
     private GoogleOidcUserService service;
 
+    /** 미등록 소셜 계정은 회원을 생성하지 않고 가입 필요 principal을 반환한다. */
+    @Test
+    void 신규_계정은_회원_ID_없이_반환한다() {
+        // given
+        when(delegate.loadUser(request)).thenReturn(oidcUser);
+        when(oidcUser.getSubject()).thenReturn("new-subject");
+
+        // when
+        var result = service.loadUser(request);
+
+        // then
+        assertThat(((InternalOidcUser) result).userId()).isNull();
+        org.mockito.Mockito.verify(accountService, org.mockito.Mockito.never())
+                .findOrCreate(org.mockito.ArgumentMatchers.any());
+    }
+
     /**
      * Google의 subject와 프로필을 내부 계정에 연결하고 사용자 ID를 principal에 담는지 검증한다.
      */
@@ -59,9 +76,9 @@ class GoogleOidcUserServiceTest {
         when(oidcUser.getFullName()).thenReturn("홍길동");
         when(oidcUser.getEmail()).thenReturn("user@example.com");
         when(oidcUser.getPicture()).thenReturn("image-url");
-        when(accountService.findOrCreate(new OAuthUserInfo(
+        when(accountService.findExisting(new OAuthUserInfo(
                 OAuthProvider.GOOGLE, "google-subject", "홍길동", "user@example.com", "image-url")))
-                .thenReturn(user);
+                .thenReturn(Optional.of(user));
         when(user.getId()).thenReturn(userId);
 
         // when
@@ -69,7 +86,7 @@ class GoogleOidcUserServiceTest {
 
         // then
         ArgumentCaptor<OAuthUserInfo> infoCaptor = ArgumentCaptor.forClass(OAuthUserInfo.class);
-        verify(accountService).findOrCreate(infoCaptor.capture());
+        verify(accountService).findExisting(infoCaptor.capture());
         assertThat(infoCaptor.getValue().providerUserId()).isEqualTo("google-subject");
         assertThat(result).isInstanceOf(InternalOidcUser.class);
         assertThat(((InternalOidcUser) result).getUserId()).isEqualTo(userId);
@@ -104,15 +121,15 @@ class GoogleOidcUserServiceTest {
         // given
         when(delegate.loadUser(request)).thenReturn(oidcUser);
         when(oidcUser.getSubject()).thenReturn("google-subject");
-        when(accountService.findOrCreate(new OAuthUserInfo(
+        when(accountService.findExisting(new OAuthUserInfo(
                 OAuthProvider.GOOGLE, "google-subject", "google-subject", null, null)))
-                .thenReturn(user);
+                .thenReturn(Optional.of(user));
 
         // when
         service.loadUser(request);
 
         // then
-        verify(accountService).findOrCreate(new OAuthUserInfo(
+        verify(accountService).findExisting(new OAuthUserInfo(
                 OAuthProvider.GOOGLE, "google-subject", "google-subject", null, null));
     }
 
@@ -122,15 +139,15 @@ class GoogleOidcUserServiceTest {
         when(delegate.loadUser(request)).thenReturn(oidcUser);
         when(oidcUser.getSubject()).thenReturn("google-subject");
         when(oidcUser.getEmail()).thenReturn("user@example.com");
-        when(accountService.findOrCreate(new OAuthUserInfo(
+        when(accountService.findExisting(new OAuthUserInfo(
                 OAuthProvider.GOOGLE, "google-subject", "user@example.com", "user@example.com", null)))
-                .thenReturn(user);
+                .thenReturn(Optional.of(user));
 
         // when
         service.loadUser(request);
 
         // then
-        verify(accountService).findOrCreate(new OAuthUserInfo(
+        verify(accountService).findExisting(new OAuthUserInfo(
                 OAuthProvider.GOOGLE, "google-subject", "user@example.com", "user@example.com", null));
     }
 
@@ -141,15 +158,15 @@ class GoogleOidcUserServiceTest {
         when(oidcUser.getSubject()).thenReturn("google-subject");
         when(oidcUser.getFullName()).thenReturn(" ");
         when(oidcUser.getEmail()).thenReturn("user@example.com");
-        when(accountService.findOrCreate(new OAuthUserInfo(
+        when(accountService.findExisting(new OAuthUserInfo(
                 OAuthProvider.GOOGLE, "google-subject", "user@example.com", "user@example.com", null)))
-                .thenReturn(user);
+                .thenReturn(Optional.of(user));
 
         // when
         service.loadUser(request);
 
         // then
-        verify(accountService).findOrCreate(new OAuthUserInfo(
+        verify(accountService).findExisting(new OAuthUserInfo(
                 OAuthProvider.GOOGLE, "google-subject", "user@example.com", "user@example.com", null));
     }
 
@@ -160,15 +177,15 @@ class GoogleOidcUserServiceTest {
         when(oidcUser.getSubject()).thenReturn("google-subject");
         when(oidcUser.getFullName()).thenReturn(" ");
         when(oidcUser.getEmail()).thenReturn(" ");
-        when(accountService.findOrCreate(new OAuthUserInfo(
+        when(accountService.findExisting(new OAuthUserInfo(
                 OAuthProvider.GOOGLE, "google-subject", "google-subject", " ", null)))
-                .thenReturn(user);
+                .thenReturn(Optional.of(user));
 
         // when
         service.loadUser(request);
 
         // then
-        verify(accountService).findOrCreate(new OAuthUserInfo(
+        verify(accountService).findExisting(new OAuthUserInfo(
                 OAuthProvider.GOOGLE, "google-subject", "google-subject", " ", null));
     }
 }

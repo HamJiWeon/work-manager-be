@@ -19,6 +19,12 @@ public class OauthAccountServiceImpl implements OauthAccountService {
     private final OauthAccountRepository oauthAccountRepository;
     private final OauthAccountCreator oauthAccountCreator;
 
+    /** 회원 저장 없이 소셜 계정에 연결된 기존 사용자를 조회한다. */
+    @Override
+    public Optional<User> findExisting(OAuthUserInfo userInfo) {
+        return findUser(userInfo);
+    }
+
     @Override
     public User findOrCreate(OAuthUserInfo userInfo) {
         return findUser(userInfo).orElseGet(() -> createOrFindUser(userInfo));

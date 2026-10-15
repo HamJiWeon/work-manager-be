@@ -16,6 +16,7 @@ import work.managerbe.oauthaccount.service.OauthAccountService;
 import work.managerbe.user.domain.User;
 
 import java.util.UUID;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,6 +45,23 @@ class GithubOAuth2UserServiceTest {
     @InjectMocks
     private GithubOAuth2UserService service;
 
+    /** 미등록 소셜 계정은 회원을 생성하지 않고 가입 필요 principal을 반환한다. */
+    @Test
+    void 신규_계정은_회원_ID_없이_반환한다() {
+        // given
+        when(delegate.loadUser(request)).thenReturn(oauth2User);
+        when(oauth2User.getAttribute("id")).thenReturn(98765);
+        when(oauth2User.getAttribute("login")).thenReturn("new-user");
+
+        // when
+        var result = service.loadUser(request);
+
+        // then
+        assertThat(((InternalOAuth2User) result).userId()).isNull();
+        org.mockito.Mockito.verify(accountService, org.mockito.Mockito.never())
+                .findOrCreate(org.mockito.ArgumentMatchers.any());
+    }
+
     /**
      * GitHub의 숫자 ID와 공개 프로필을 내부 계정에 연결하고 사용자 ID를 principal에 담는지 검증한다.
      */
@@ -57,9 +75,9 @@ class GithubOAuth2UserServiceTest {
         when(oauth2User.getAttribute("name")).thenReturn(null);
         when(oauth2User.getAttribute("email")).thenReturn(null);
         when(oauth2User.getAttribute("avatar_url")).thenReturn("avatar-url");
-        when(accountService.findOrCreate(new OAuthUserInfo(
+        when(accountService.findExisting(new OAuthUserInfo(
                 OAuthProvider.GITHUB, "12345", "octocat", null, "avatar-url")))
-                .thenReturn(user);
+                .thenReturn(Optional.of(user));
         when(user.getId()).thenReturn(userId);
 
         // when
@@ -67,7 +85,7 @@ class GithubOAuth2UserServiceTest {
 
         // then
         ArgumentCaptor<OAuthUserInfo> infoCaptor = ArgumentCaptor.forClass(OAuthUserInfo.class);
-        verify(accountService).findOrCreate(infoCaptor.capture());
+        verify(accountService).findExisting(infoCaptor.capture());
         assertThat(infoCaptor.getValue().providerUserId()).isEqualTo("12345");
         assertThat(infoCaptor.getValue().name()).isEqualTo("octocat");
         assertThat(result).isInstanceOf(InternalOAuth2User.class);
@@ -81,15 +99,15 @@ class GithubOAuth2UserServiceTest {
         when(oauth2User.getAttribute("id")).thenReturn(12345);
         when(oauth2User.getAttribute("login")).thenReturn("octocat");
         when(oauth2User.getAttribute("name")).thenReturn("Octo Cat");
-        when(accountService.findOrCreate(new OAuthUserInfo(
+        when(accountService.findExisting(new OAuthUserInfo(
                 OAuthProvider.GITHUB, "12345", "Octo Cat", null, null)))
-                .thenReturn(user);
+                .thenReturn(Optional.of(user));
 
         // when
         service.loadUser(request);
 
         // then
-        verify(accountService).findOrCreate(new OAuthUserInfo(
+        verify(accountService).findExisting(new OAuthUserInfo(
                 OAuthProvider.GITHUB, "12345", "Octo Cat", null, null));
     }
 
@@ -100,15 +118,15 @@ class GithubOAuth2UserServiceTest {
         when(oauth2User.getAttribute("id")).thenReturn(12345);
         when(oauth2User.getAttribute("login")).thenReturn("octocat");
         when(oauth2User.getAttribute("name")).thenReturn(" ");
-        when(accountService.findOrCreate(new OAuthUserInfo(
+        when(accountService.findExisting(new OAuthUserInfo(
                 OAuthProvider.GITHUB, "12345", "octocat", null, null)))
-                .thenReturn(user);
+                .thenReturn(Optional.of(user));
 
         // when
         service.loadUser(request);
 
         // then
-        verify(accountService).findOrCreate(new OAuthUserInfo(
+        verify(accountService).findExisting(new OAuthUserInfo(
                 OAuthProvider.GITHUB, "12345", "octocat", null, null));
     }
 
