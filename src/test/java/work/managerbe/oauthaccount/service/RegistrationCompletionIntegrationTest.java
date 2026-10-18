@@ -37,6 +37,7 @@ import java.util.concurrent.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -318,6 +319,42 @@ class RegistrationCompletionIntegrationTest {
                 } finally {
                     revision.rollback();
                 }
+            }
+        }
+    }
+
+    /** 서로 다른 가입이 커밋 전 토큰 발급 단계까지 함께 진행되는지 검증한다. */
+    @Test
+    void 서로다른_사용자는_약관_잠금으로_직렬화되지않는다() throws Exception {
+        // given
+        String firstToken = pending.issue(info, null);
+        String secondToken = pending.issue(new OAuthUserInfo(
+                OAuthProvider.GITHUB, "parallel-social-id", "병렬 사용자", null, null), null);
+        var bothReachedTokenIssue = new CountDownLatch(2);
+        var releaseTransactions = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            bothReachedTokenIssue.countDown();
+            if (!releaseTransactions.await(LOCK_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("가입 트랜잭션 해제 대기 시간 초과");
+            }
+            return invocation.callRealMethod();
+        }).when(refresh).issue(any());
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            try {
+                // when
+                var first = executor.submit(() -> completion.complete(firstToken, accepted));
+                var second = executor.submit(() -> completion.complete(secondToken, accepted));
+                // then
+                assertThat(bothReachedTokenIssue.await(LOCK_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                        .as("두 가입이 상대방의 커밋 없이 토큰 발급 단계까지 진행해야 한다").isTrue();
+                releaseTransactions.countDown();
+                assertThat(first.get(LOCK_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS).refreshToken()).isNotBlank();
+                assertThat(second.get(LOCK_WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS).refreshToken()).isNotBlank();
+                assertThat(users.count()).isEqualTo(2); assertThat(accounts.count()).isEqualTo(2);
+                assertThat(consents.count()).isEqualTo(6); assertThat(tokens.count()).isEqualTo(2);
+                assertThat(pendingRepository.count()).isZero();
+            } finally {
+                releaseTransactions.countDown();
             }
         }
     }

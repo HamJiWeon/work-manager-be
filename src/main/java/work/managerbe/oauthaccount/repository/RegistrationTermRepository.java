@@ -12,8 +12,8 @@ import java.util.UUID;
 public interface RegistrationTermRepository extends JpaRepository<RegistrationTerm, UUID> {
     List<RegistrationTerm> findByActiveTrueOrderByCodeAsc();
 
-    /** 활성 행을 잠그며 가입 트랜잭션의 REPEATABLE_READ와 함께 개정 충돌을 감지한다. */
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    /** 활성 약관을 공유 잠금으로 읽어 가입끼리 병렬 진행하며 REPEATABLE_READ와 함께 개정 충돌을 감지한다. */
+    @Lock(LockModeType.PESSIMISTIC_READ)
     @Query("select t from RegistrationTerm t where t.active = true order by t.code")
     List<RegistrationTerm> lockActiveTerms();
 }
