@@ -69,12 +69,12 @@ public class PendingRegistrationService {
                 .orElseThrow(() -> new BadCredentialsException("유효한 임시 가입 정보가 없습니다."));
     }
 
-    /** 취소나 기존 회원 로그인 시 이전 임시 가입 정보를 삭제한다. */
+    /** 취소나 기존 회원 로그인 시 이전 임시 가입 정보를 삭제하며 이미 소비된 토큰도 정상 처리한다. */
     public void revoke(String token) {
         if (token != null && !token.isBlank()) repository.deleteByTokenHash(hash(token));
     }
 
-    /** 만료 시각이 지난 개인정보를 10분 간격으로 삭제한다. */
+    /** 만료 시각이 지난 개인정보를 10분 간격으로 일괄 삭제하며 가입 완료가 먼저 삭제한 행은 건너뛴다. */
     @Scheduled(fixedDelay = CLEANUP_INTERVAL_MILLIS)
     public long cleanup() {
         return repository.deleteByExpiresAtLessThanEqual(LocalDateTime.now(clock));
