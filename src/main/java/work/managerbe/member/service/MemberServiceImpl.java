@@ -28,19 +28,29 @@ import work.managerbe.user.repository.UserRepository;
 @RequiredArgsConstructor
 @Transactional
 public class MemberServiceImpl implements MemberService {
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final long MAX_PAGE_OFFSET = Integer.MAX_VALUE;
     private static final Set<MemberRole> MEMBER_MANAGER_ROLES = Set.of(MemberRole.OWNER, MemberRole.ADMIN);
 
     private final MemberRepository memberRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
 
-    /** 읽기 전용 트랜잭션에서 활성 참여를 확인하고 탈퇴자를 제외한 목록과 전체 개수를 반환한다. */
+    /** 페이지 조건과 JPA 오프셋 한계를 검증하고 읽기 전용 트랜잭션에서 활성 멤버 목록과 집계를 반환한다. */
     @Override
     @Transactional(readOnly = true)
     public MemberPageResponse getAll(UUID creatorId, String code, UUID requesterId, int page, int size) {
+        validatePage(page, size);
         Project project = findReadableProject(creatorId, code, requesterId);
         return MemberPageResponse.from(memberRepository.findAllByProject_IdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(
                 project.getId(), PageRequest.of(page, size)));
+    }
+
+    /** 서비스 직접 호출도 페이지 범위를 검증하며 long 곱셈으로 오버플로 없이 JPA 한계를 확인한다. */
+    private static void validatePage(int page, int size) {
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE || (long) page * size > MAX_PAGE_OFFSET) {
+            throw MemberException.of(MemberErrorCode.MEMBER_INVALID_PAGE);
+        }
     }
 
     /**

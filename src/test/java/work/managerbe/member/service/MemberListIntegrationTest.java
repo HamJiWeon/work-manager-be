@@ -3,20 +3,29 @@ package work.managerbe.member.service;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
+import work.managerbe.global.exception.member.MemberException;
+import work.managerbe.global.exception.member.MemberErrorCode;
 import work.managerbe.member.domain.Member;
 import work.managerbe.member.domain.MemberRole;
 import work.managerbe.member.dto.MemberResponse;
@@ -25,23 +34,29 @@ import work.managerbe.user.domain.User;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** 실제 스키마에서 활성 멤버 필터, 정렬, 페이지 집계 및 프로젝트별 조회 권한을 검증한다. */
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:member-list-test;DB_CLOSE_DELAY=-1")
+@AutoConfigureMockMvc(addFilters = false)
 @Transactional
 class MemberListIntegrationTest {
     private static final LocalDateTime JOINED_AT = LocalDateTime.of(2026, 9, 14, 9, 0);
 
     private final MemberService service;
     private final EntityManager entityManager;
+    private final MockMvc mvc;
     private User creator;
     private Project project;
     private Member owner;
 
     @Autowired
-    MemberListIntegrationTest(MemberService service, EntityManager entityManager) {
+    MemberListIntegrationTest(MemberService service, EntityManager entityManager, MockMvc mvc) {
         this.service = service;
         this.entityManager = entityManager;
+        this.mvc = mvc;
     }
 
     @BeforeEach
@@ -99,6 +114,60 @@ class MemberListIntegrationTest {
         assertThat(response.size()).isEqualTo(20);
         assertThat(response.totalElements()).isEqualTo(1);
         assertThat(response.totalPages()).isEqualTo(1);
+    }
+
+    /** JPA가 허용하는 최대 오프셋까지는 마지막 페이지를 넘겨도 빈 목록과 집계를 반환한다. */
+    @ParameterizedTest
+    @CsvSource({"2147483647,1", "107374182,20"})
+    void JPA_오프셋_허용_경계에서는_빈_목록과_전체_집계를_반환한다(int page, int size) {
+        // given / when
+        var response = service.getAll(creator.getId(), project.getCode(), creator.getId(), page, size);
+        // then
+        assertThat(response.items()).isEmpty();
+        assertThat(response.page()).isEqualTo(page);
+        assertThat(response.size()).isEqualTo(size);
+        assertThat(response.totalElements()).isEqualTo(1);
+        assertThat(response.totalPages()).isEqualTo(1);
+    }
+
+    /** 곱셈을 long으로 수행해 JPA 한계 초과와 int 오버플로가 서버 오류로 이어지는 것을 방지한다. */
+    @ParameterizedTest
+    @CsvSource({"107374183,20", "1073741824,2", "2147483647,100"})
+    void JPA_오프셋_한계를_넘으면_400_도메인_오류로_거절한다(int page, int size) {
+        // given / when / then
+        assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), creator.getId(), page, size))
+                .isInstanceOfSatisfying(MemberException.class, error -> {
+                    assertThat(error.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_INVALID_PAGE);
+                    assertThat(error.getErrorCode().getHttpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                });
+    }
+
+    /** 실제 컨트롤러·서비스·예외 처리기를 통해 리뷰의 요청이 500 대신 400으로 처리되는지 확인한다. */
+    @ParameterizedTest
+    @CsvSource({"107374183,20", "1073741824,2", "2147483647,100"})
+    void JPA_오프셋_초과_HTTP_요청은_400과_페이지_오류_코드를_반환한다(int page, int size) throws Exception {
+        // given
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(creator.getId(), null, List.of()));
+        SecurityContextHolder.setContext(context);
+        try {
+            // when / then
+            mvc.perform(get("/{userId}/{code}/members", creator.getId(), project.getCode())
+                            .param("page", Integer.toString(page)).param("size", Integer.toString(size)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("MEMBER_INVALID_PAGE"));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"-1,20", "0,0", "0,-1", "0,101"})
+    void 서비스_직접_호출도_잘못된_페이지_조건을_400으로_거절한다(int page, int size) {
+        // given / when / then
+        assertThatThrownBy(() -> service.getAll(creator.getId(), project.getCode(), creator.getId(), page, size))
+                .isInstanceOfSatisfying(MemberException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_INVALID_PAGE));
     }
 
     @ParameterizedTest
