@@ -101,7 +101,7 @@ class MemberMutationIntegrationTest {
         assertThat(response).isEqualTo(before);
     }
 
-    /** 기존 카드의 담당자를 유지하고 단건·목록에서 탈퇴자를 제외하며 신규 담당자 지정은 거절한다. */
+    /** DB에 저장된 시각을 기준으로 참여 기록과 카드 관계 보존 및 탈퇴자의 조회·담당자 지정 제한을 검증한다. */
     @Test
     void 탈퇴는_기존_카드와_참여_기록을_보존하고_신규_담당자_지정을_거절한다() {
         // given
@@ -111,6 +111,7 @@ class MemberMutationIntegrationTest {
                 member, project, board, null, null);
         entityManager.persist(card);
         entityManager.flush();
+        entityManager.refresh(member);
         var joinedAt = member.getJoinedAt();
         var createdAt = member.getCreatedAt();
         // when
