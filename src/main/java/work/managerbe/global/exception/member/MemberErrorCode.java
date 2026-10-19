@@ -15,7 +15,9 @@ public enum MemberErrorCode implements ApiErrorCode {
     MEMBER_NOT_FOUND("MBR-001", HttpStatus.NOT_FOUND, "멤버를 찾을 수 없습니다."),
     MEMBER_INVALID_REQUEST("MBR-002", HttpStatus.BAD_REQUEST, "멤버 추가 요청이 유효하지 않습니다."),
     MEMBER_ALREADY_EXISTS("MBR-003", HttpStatus.CONFLICT, "이미 프로젝트에 가입한 사용자입니다."),
-    MEMBER_INVALID_PAGE("MBR-004", HttpStatus.BAD_REQUEST, "멤버 조회 페이지 조건이 유효하지 않습니다.");
+    MEMBER_INVALID_PAGE("MBR-004", HttpStatus.BAD_REQUEST, "멤버 조회 페이지 조건이 유효하지 않습니다."),
+    MEMBER_INVALID_ROLE("MBR-005", HttpStatus.BAD_REQUEST, "변경할 역할은 ADMIN 또는 MEMBER여야 합니다."),
+    MEMBER_OWNER_PROTECTED("MBR-006", HttpStatus.CONFLICT, "소유권 이전 없이 OWNER를 변경하거나 삭제할 수 없습니다.");
 
     private final String name;
     private final HttpStatus httpStatus;

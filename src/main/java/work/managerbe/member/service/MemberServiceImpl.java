@@ -3,6 +3,7 @@ package work.managerbe.member.service;
 import work.managerbe.member.domain.MemberRole;
 import java.util.Set;
 import java.util.UUID;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import work.managerbe.member.domain.Member;
 import work.managerbe.member.dto.MemberResponse;
 import work.managerbe.member.dto.MemberPageResponse;
 import work.managerbe.member.dto.request.MemberCreateRequest;
+import work.managerbe.member.dto.request.MemberUpdateRequest;
 import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.project.domain.Project;
 import work.managerbe.project.repository.ProjectRepository;
@@ -35,6 +37,61 @@ public class MemberServiceImpl implements MemberService {
     private final MemberRepository memberRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+
+    /** 프로젝트 행 잠금 안에서 활성 OWNER 권한을 확인하고 역할 변경을 flush한 뒤 감사 시각까지 응답한다. */
+    @Override
+    public MemberResponse update(UUID creatorId, String code, Long memberId, UUID requesterId,
+                                 MemberUpdateRequest request) {
+        if (request == null || !request.isValid()) {
+            throw MemberException.of(MemberErrorCode.MEMBER_INVALID_ROLE);
+        }
+        Project project = findOwnerProjectForUpdate(creatorId, code, requesterId);
+        Member member = findActiveMember(memberId, project.getId());
+        member.changeRole(request.role());
+        memberRepository.flush();
+        return MemberResponse.from(member);
+    }
+
+    /** 카드 생성과 같은 프로젝트 잠금을 사용하고 최초 탈퇴 시각과 카드 담당자 관계를 보존한다. */
+    @Override
+    public void delete(UUID creatorId, String code, Long memberId, UUID requesterId) {
+        Project project = findOwnerProjectForUpdate(creatorId, code, requesterId);
+        if (memberId == null) {
+            throw MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND);
+        }
+        Member member = memberRepository.findByIdAndProject_Id(memberId, project.getId())
+                .orElseThrow(() -> MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND));
+        if (member.getRole() == MemberRole.OWNER) {
+            throw MemberException.of(MemberErrorCode.MEMBER_OWNER_PROTECTED);
+        }
+        if (member.getLeftAt() == null) {
+            member.leave(LocalDateTime.now());
+        }
+    }
+
+    /** 생성자·코드로 프로젝트를 잠그고 해당 프로젝트의 탈퇴하지 않은 OWNER인지 검증한다. */
+    private Project findOwnerProjectForUpdate(UUID creatorId, String code, UUID requesterId) {
+        validateRequester(requesterId);
+        if (creatorId == null || code == null || code.isBlank()) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND);
+        }
+        Project project = projectRepository.findByCreatorIdAndCodeForUpdate(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        if (!memberRepository.existsByUser_IdAndProject_IdAndLeftAtIsNullAndRoleIn(
+                requesterId, project.getId(), Set.of(MemberRole.OWNER))) {
+            throw new AccessDeniedException("프로젝트의 활성 OWNER만 멤버를 변경하거나 삭제할 수 있습니다.");
+        }
+        return project;
+    }
+
+    /** 멤버 ID와 프로젝트 소속, 활성 상태를 함께 확인해 탈퇴 이력과 다른 프로젝트의 멤버를 숨긴다. */
+    private Member findActiveMember(Long memberId, Long projectId) {
+        if (memberId == null) {
+            throw MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND);
+        }
+        return memberRepository.findByIdAndProject_IdAndLeftAtIsNull(memberId, projectId)
+                .orElseThrow(() -> MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND));
+    }
 
     /** 페이지 조건과 JPA 오프셋 한계를 검증하고 읽기 전용 트랜잭션에서 활성 멤버 목록과 집계를 반환한다. */
     @Override
@@ -55,18 +112,13 @@ public class MemberServiceImpl implements MemberService {
 
     /**
      * 읽기 전용 트랜잭션에서 프로젝트의 활성 참여를 확인하고 프로젝트에 속한 멤버만 조회한다.
-     * 대상의 탈퇴 여부는 제한하지 않으며 없는 ID와 다른 프로젝트의 ID는 멤버 없음으로 처리한다.
+     * 탈퇴한 대상과 없는 ID, 다른 프로젝트의 ID는 모두 멤버 없음으로 처리한다.
      */
     @Override
     @Transactional(readOnly = true)
     public MemberResponse get(UUID creatorId, String code, Long memberId, UUID requesterId) {
         Project project = findReadableProject(creatorId, code, requesterId);
-        if (memberId == null) {
-            throw MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND);
-        }
-        Member member = memberRepository.findByIdAndProject_Id(memberId, project.getId())
-                .orElseThrow(() -> MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND));
-        return MemberResponse.from(member);
+        return MemberResponse.from(findActiveMember(memberId, project.getId()));
     }
 
     /** 단건과 목록 조회에서 생성자·코드로 프로젝트를 식별하고 요청자의 활성 참여를 검증한다. */
