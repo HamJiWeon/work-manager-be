@@ -6,6 +6,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.global.exception.member.MemberErrorCode;
 import work.managerbe.global.exception.member.MemberException;
@@ -15,6 +16,7 @@ import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.global.exception.user.UserException;
 import work.managerbe.member.domain.Member;
 import work.managerbe.member.dto.MemberResponse;
+import work.managerbe.member.dto.MemberPageResponse;
 import work.managerbe.member.dto.request.MemberCreateRequest;
 import work.managerbe.member.repository.MemberRepository;
 import work.managerbe.project.domain.Project;
@@ -26,11 +28,60 @@ import work.managerbe.user.repository.UserRepository;
 @RequiredArgsConstructor
 @Transactional
 public class MemberServiceImpl implements MemberService {
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final long MAX_PAGE_OFFSET = Integer.MAX_VALUE;
     private static final Set<MemberRole> MEMBER_MANAGER_ROLES = Set.of(MemberRole.OWNER, MemberRole.ADMIN);
 
     private final MemberRepository memberRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+
+    /** 페이지 조건과 JPA 오프셋 한계를 검증하고 읽기 전용 트랜잭션에서 활성 멤버 목록과 집계를 반환한다. */
+    @Override
+    @Transactional(readOnly = true)
+    public MemberPageResponse getAll(UUID creatorId, String code, UUID requesterId, int page, int size) {
+        validatePage(page, size);
+        Project project = findReadableProject(creatorId, code, requesterId);
+        return MemberPageResponse.from(memberRepository.findAllByProject_IdAndLeftAtIsNullOrderByJoinedAtAscIdAsc(
+                project.getId(), PageRequest.of(page, size)));
+    }
+
+    /** 서비스 직접 호출도 페이지 범위를 검증하며 long 곱셈으로 오버플로 없이 JPA 한계를 확인한다. */
+    private static void validatePage(int page, int size) {
+        if (page < 0 || size < 1 || size > MAX_PAGE_SIZE || (long) page * size > MAX_PAGE_OFFSET) {
+            throw MemberException.of(MemberErrorCode.MEMBER_INVALID_PAGE);
+        }
+    }
+
+    /**
+     * 읽기 전용 트랜잭션에서 프로젝트의 활성 참여를 확인하고 프로젝트에 속한 멤버만 조회한다.
+     * 대상의 탈퇴 여부는 제한하지 않으며 없는 ID와 다른 프로젝트의 ID는 멤버 없음으로 처리한다.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public MemberResponse get(UUID creatorId, String code, Long memberId, UUID requesterId) {
+        Project project = findReadableProject(creatorId, code, requesterId);
+        if (memberId == null) {
+            throw MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND);
+        }
+        Member member = memberRepository.findByIdAndProject_Id(memberId, project.getId())
+                .orElseThrow(() -> MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND));
+        return MemberResponse.from(member);
+    }
+
+    /** 단건과 목록 조회에서 생성자·코드로 프로젝트를 식별하고 요청자의 활성 참여를 검증한다. */
+    private Project findReadableProject(UUID creatorId, String code, UUID requesterId) {
+        validateRequester(requesterId);
+        if (creatorId == null || code == null || code.isBlank()) {
+            throw ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND);
+        }
+        Project project = projectRepository.findByCreator_IdAndCode(creatorId, code)
+                .orElseThrow(() -> ProjectException.of(ProjectErrorCode.PROJECT_NOT_FOUND));
+        if (!memberRepository.existsByUserIdAndProjectId(requesterId, project.getId())) {
+            throw new AccessDeniedException("프로젝트의 활성 멤버만 멤버를 조회할 수 있습니다.");
+        }
+        return project;
+    }
 
     /**
      * 프로젝트 행 잠금 안에서 활성 OWNER·ADMIN 권한과 중복 가입을 검사한다.

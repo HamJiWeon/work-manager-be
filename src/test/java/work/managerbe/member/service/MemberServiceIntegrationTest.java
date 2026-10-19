@@ -16,7 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import work.managerbe.global.exception.member.MemberErrorCode;
 import work.managerbe.global.exception.member.MemberException;
 import work.managerbe.global.exception.project.ProjectException;
+import work.managerbe.global.exception.project.ProjectErrorCode;
 import work.managerbe.global.exception.user.UserException;
+import work.managerbe.global.exception.user.UserErrorCode;
 import work.managerbe.member.domain.Member;
 import work.managerbe.member.dto.MemberResponse;
 import work.managerbe.member.dto.request.MemberCreateRequest;
@@ -74,6 +76,141 @@ class MemberServiceIntegrationTest {
         assertThat(response.updatedAt()).isNotNull();
         assertThat(saved.getUser().getId()).isEqualTo(target.getId());
         assertThat(saved.getProject().getId()).isEqualTo(project.getId());
+    }
+
+    /** 모든 활성 역할의 요청자가 같은 프로젝트의 멤버와 감사 시각을 조회한다. */
+    @ParameterizedTest
+    @EnumSource(MemberRole.class)
+    void 활성_멤버는_역할에_관계없이_같은_프로젝트의_멤버를_조회한다(MemberRole role) {
+        // given
+        User requester = users.save(User.create("조회자", "member-reader@test.com", null));
+        members.saveAndFlush(Member.create(requester, project, role));
+        Member member = members.saveAndFlush(Member.create(target, project, MemberRole.MEMBER));
+        // when
+        var response = service.get(creator.getId(), project.getCode(), member.getId(), requester.getId());
+        // then
+        assertThat(response).isEqualTo(MemberResponse.from(member));
+        assertThat(response.role()).isEqualTo(MemberRole.MEMBER);
+        assertThat(response.joinedAt()).isNotNull();
+        assertThat(response.createdAt()).isNotNull();
+        assertThat(response.updatedAt()).isNotNull();
+    }
+
+    /** 단건 조회는 탈퇴한 대상의 기존 가입 이력도 반환한다. */
+    @Test
+    void 탈퇴한_대상_멤버도_탈퇴_시각과_함께_조회한다() {
+        // given
+        Member member = members.saveAndFlush(Member.create(target, project, MemberRole.MEMBER));
+        member.leave(member.getJoinedAt().plusSeconds(1));
+        members.flush();
+        // when
+        var response = service.get(creator.getId(), project.getCode(), member.getId(), creator.getId());
+        // then
+        assertThat(response.leftAt()).isEqualTo(member.getLeftAt());
+        assertThat(response.joinedAt()).isEqualTo(member.getJoinedAt());
+    }
+
+    /** 멤버 ID가 존재해도 경로로 식별한 프로젝트 소속이 아니면 노출하지 않는다. */
+    @Test
+    void 다른_생성자의_동일_코드_프로젝트_멤버는_조회할_수_없다() {
+        // given
+        Project other = projects.save(Project.create(target, project.getCode(), "다른 프로젝트", null));
+        Member member = members.saveAndFlush(Member.create(target, other, MemberRole.OWNER));
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), member.getId(), creator.getId()))
+                .isInstanceOfSatisfying(MemberException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND));
+    }
+
+    @Test
+    void 없거나_null인_멤버_ID는_멤버_없음으로_처리한다() {
+        // given
+        Member member = members.saveAndFlush(Member.create(target, project, MemberRole.MEMBER));
+        Long deletedId = member.getId();
+        members.delete(member);
+        members.flush();
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), deletedId, creator.getId()))
+                .isInstanceOfSatisfying(MemberException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND));
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), null, creator.getId()))
+                .isInstanceOfSatisfying(MemberException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND));
+    }
+
+    @Test
+    void 비참여자와_다른_프로젝트의_관리자는_멤버를_조회할_수_없다() {
+        // given
+        Project other = projects.save(Project.create(target, "OTHER", "다른 프로젝트", null));
+        User outsider = users.save(User.create("외부 사용자", "member-outsider@test.com", null));
+        members.saveAndFlush(Member.create(target, other, MemberRole.ADMIN));
+        Member member = members.saveAndFlush(Member.create(outsider, project, MemberRole.MEMBER));
+        User nonMember = users.save(User.create("비참여자", "member-nonparticipant@test.com", null));
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), member.getId(), target.getId()))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), member.getId(), nonMember.getId()))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @ParameterizedTest
+    @EnumSource(MemberRole.class)
+    void 탈퇴한_요청자는_역할에_관계없이_멤버를_조회할_수_없다(MemberRole role) {
+        // given
+        Member member = members.saveAndFlush(Member.create(target, project, role));
+        member.leave(member.getJoinedAt().plusSeconds(1));
+        members.flush();
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), member.getId(), target.getId()))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void 생성자도_활성_가입이_없으면_멤버를_조회할_수_없다() {
+        // given
+        members.deleteAll();
+        Member member = members.saveAndFlush(Member.create(target, project, MemberRole.MEMBER));
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), member.getId(), creator.getId()))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void 조회_요청자가_없으면_사용자_없음으로_처리한다() {
+        // given
+        Member member = members.saveAndFlush(Member.create(target, project, MemberRole.MEMBER));
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), member.getId(), null))
+                .isInstanceOfSatisfying(UserException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), member.getId(), UUID.randomUUID()))
+                .isInstanceOfSatisfying(UserException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "MISSING"})
+    void 조회할_프로젝트_코드가_유효하지_않으면_프로젝트_없음으로_처리한다(String code) {
+        // given
+        Member member = members.saveAndFlush(Member.create(target, project, MemberRole.MEMBER));
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), code, member.getId(), creator.getId()))
+                .isInstanceOfSatisfying(ProjectException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
+    }
+
+    @Test
+    void 조회할_프로젝트의_생성자가_없으면_프로젝트_없음으로_처리한다() {
+        // given
+        Member member = members.saveAndFlush(Member.create(target, project, MemberRole.MEMBER));
+        // when / then
+        assertThatThrownBy(() -> service.get(null, project.getCode(), member.getId(), creator.getId()))
+                .isInstanceOfSatisfying(ProjectException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
+        assertThatThrownBy(() -> service.get(UUID.randomUUID(), project.getCode(), member.getId(), creator.getId()))
+                .isInstanceOfSatisfying(ProjectException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ProjectErrorCode.PROJECT_NOT_FOUND));
     }
 
     @Test
