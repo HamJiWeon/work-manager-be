@@ -84,6 +84,29 @@ class OAuthProviderPostgresMigrationTest {
         }
     }
 
+    /** PostgreSQL에서도 임시 가입 테이블과 토큰 유일 제약이 적용되는지 검증한다. */
+    @Test
+    void 임시_가입_마이그레이션은_회원없이_저장하고_중복토큰을_거절한다() throws SQLException {
+        // given
+        try (Connection connection = database()) {
+            migrate(connection, "17");
+            JdbcTemplate jdbc = jdbc(connection);
+            String hash = "a".repeat(64);
+            // when
+            jdbc.update("""
+                    INSERT INTO pending_registrations (id, token_hash, provider, provider_user_id, name, expires_at)
+                    VALUES (?, ?, 'GOOGLE', 'new-subject', '신규', CURRENT_TIMESTAMP)
+                    """, UUID.randomUUID(), hash);
+            // then
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isZero();
+            assertThatThrownBy(() -> jdbc.update("""
+                    INSERT INTO pending_registrations (id, token_hash, provider, provider_user_id, name, expires_at)
+                    VALUES (?, ?, 'GITHUB', 'another-subject', '신규', CURRENT_TIMESTAMP)
+                    """, UUID.randomUUID(), hash))
+                    .isInstanceOfSatisfying(Exception.class, error -> assertThat(sqlState(error)).isEqualTo("23505"));
+        }
+    }
+
     private static Connection database() throws SQLException {
         Connection connection = DriverManager.getConnection(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());

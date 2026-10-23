@@ -23,15 +23,15 @@ public class GithubOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
     private final OauthAccountService oauthAccountService;
 
     /**
-     * GitHub의 id와 공개 프로필을 내부 사용자 정보로 변환해 계정을 연결한다.
+     * GitHub의 id와 공개 프로필을 내부 사용자 정보로 변환해 기존 회원을 조회한다.
      */
     @Override
     public OAuth2User loadUser(OAuth2UserRequest request) throws OAuth2AuthenticationException {
         OAuth2User oauth2User = defaultOAuth2UserService.loadUser(request);
         OAuthUserInfo userInfo = validateUserInfo(oauth2User);
-        User user = oauthAccountService.findOrCreate(userInfo);
+        var userId = oauthAccountService.findExisting(userInfo).map(User::getId).orElse(null);
 
-        return new InternalOAuth2User(user.getId(), oauth2User);
+        return new InternalOAuth2User(userId, oauth2User, userInfo);
     }
 
     /**

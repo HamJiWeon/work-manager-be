@@ -24,15 +24,15 @@ public class GoogleOidcUserService implements OAuth2UserService<OidcUserRequest,
     private final OauthAccountService oauthAccountService;
 
     /**
-     * Google OIDC의 subject를 계정 식별자로 사용해 내부 사용자를 연결한다.
+     * Google OIDC의 subject를 계정 식별자로 사용해 기존 회원을 조회한다.
      */
     @Override
     public OidcUser loadUser(OidcUserRequest request) throws OAuth2AuthenticationException {
         OidcUser oidcUser = oidcUserService.loadUser(request);
         OAuthUserInfo userInfo = validateUserInfo(oidcUser);
-        User user = oauthAccountService.findOrCreate(userInfo);
+        var userId = oauthAccountService.findExisting(userInfo).map(User::getId).orElse(null);
 
-        return new InternalOidcUser(user.getId(), oidcUser);
+        return new InternalOidcUser(userId, oidcUser, userInfo);
     }
 
     /**
