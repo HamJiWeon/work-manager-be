@@ -19,6 +19,9 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     /** 멤버 ID와 프로젝트 소속을 함께 확인하고 탈퇴 이력도 조회한다. */
     Optional<Member> findByIdAndProject_Id(Long memberId, Long projectId);
 
+    /** 프로젝트에 속하고 탈퇴하지 않은 멤버만 일반 조회·역할 변경 대상으로 찾는다. */
+    Optional<Member> findByIdAndProject_IdAndLeftAtIsNull(Long memberId, Long projectId);
+
     /** 요청자가 해당 프로젝트에 활성 상태로 가입했고 허용된 역할인지 확인한다. */
     boolean existsByUser_IdAndProject_IdAndLeftAtIsNullAndRoleIn(
             UUID userId, Long projectId, Collection<MemberRole> roles);

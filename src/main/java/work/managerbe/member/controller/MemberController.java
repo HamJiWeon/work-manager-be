@@ -11,6 +11,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,6 +21,7 @@ import work.managerbe.global.constant.ApiPaths;
 import work.managerbe.member.dto.MemberResponse;
 import work.managerbe.member.dto.MemberPageResponse;
 import work.managerbe.member.dto.request.MemberCreateRequest;
+import work.managerbe.member.dto.request.MemberUpdateRequest;
 import work.managerbe.member.service.MemberService;
 
 @RestController
@@ -28,6 +31,26 @@ public class MemberController {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final MemberService memberService;
+
+    /** 명세의 단건 경로로 역할 변경을 요청하고 갱신된 멤버와 감사 시각을 반환한다. */
+    @PatchMapping("/{memberId}")
+    public ResponseEntity<MemberResponse> update(
+            @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
+            @PathVariable("memberId") Long memberId, @AuthenticationPrincipal UUID requesterId,
+            @Valid @RequestBody MemberUpdateRequest request
+    ) {
+        return ResponseEntity.ok(memberService.update(creatorId, code, memberId, requesterId, request));
+    }
+
+    /** 멤버 행 삭제 대신 프로젝트 탈퇴를 요청하고 본문 없는 204 응답을 반환한다. */
+    @DeleteMapping("/members/{memberId}")
+    public ResponseEntity<Void> delete(
+            @PathVariable("userId") UUID creatorId, @PathVariable("code") String code,
+            @PathVariable("memberId") Long memberId, @AuthenticationPrincipal UUID requesterId
+    ) {
+        memberService.delete(creatorId, code, memberId, requesterId);
+        return ResponseEntity.noContent().build();
+    }
 
     /** 인증된 요청자와 기본 페이지 조건을 전달하고 조회 크기를 1부터 100까지 제한한다. */
     @GetMapping("/members")

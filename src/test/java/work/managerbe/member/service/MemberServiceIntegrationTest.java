@@ -96,18 +96,18 @@ class MemberServiceIntegrationTest {
         assertThat(response.updatedAt()).isNotNull();
     }
 
-    /** 단건 조회는 탈퇴한 대상의 기존 가입 이력도 반환한다. */
+    /** 탈퇴 기록은 유지하되 일반 단건 조회에서는 멤버 없음으로 처리한다. */
     @Test
-    void 탈퇴한_대상_멤버도_탈퇴_시각과_함께_조회한다() {
+    void 탈퇴한_대상_멤버는_일반_단건_조회에서_찾을_수_없다() {
         // given
         Member member = members.saveAndFlush(Member.create(target, project, MemberRole.MEMBER));
         member.leave(member.getJoinedAt().plusSeconds(1));
         members.flush();
-        // when
-        var response = service.get(creator.getId(), project.getCode(), member.getId(), creator.getId());
-        // then
-        assertThat(response.leftAt()).isEqualTo(member.getLeftAt());
-        assertThat(response.joinedAt()).isEqualTo(member.getJoinedAt());
+        // when / then
+        assertThatThrownBy(() -> service.get(creator.getId(), project.getCode(), member.getId(), creator.getId()))
+                .isInstanceOfSatisfying(MemberException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND));
+        assertThat(members.findById(member.getId())).isPresent();
     }
 
     /** 멤버 ID가 존재해도 경로로 식별한 프로젝트 소속이 아니면 노출하지 않는다. */

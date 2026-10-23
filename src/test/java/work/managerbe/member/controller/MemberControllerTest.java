@@ -26,11 +26,14 @@ import work.managerbe.global.exception.project.ProjectException;
 import work.managerbe.member.dto.MemberResponse;
 import work.managerbe.member.dto.MemberPageResponse;
 import work.managerbe.member.dto.request.MemberCreateRequest;
+import work.managerbe.member.dto.request.MemberUpdateRequest;
 import work.managerbe.member.service.MemberService;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** 명세 경로, 역할 기본값, 인증 사용자 전달 및 공개 오류 응답을 검증한다. */
@@ -57,6 +60,109 @@ class MemberControllerTest {
     @AfterEach
     void 인증_정리() {
         SecurityContextHolder.clearContext();
+    }
+
+    /** PATCH 명세 경로와 인증 요청자, 역할 및 감사 필드가 서비스와 응답에 반영되는지 확인한다. */
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "MEMBER"})
+    void 역할_수정은_단건_경로에서_200과_변경된_멤버를_반환한다(String role) throws Exception {
+        // given
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(TARGET, null, List.of()));
+        SecurityContextHolder.setContext(context);
+        var joined = LocalDateTime.of(2026, 9, 14, 9, 0);
+        var updated = joined.plusHours(5);
+        var request = new MemberUpdateRequest(MemberRole.valueOf(role));
+        when(service.update(CREATOR, "TEST", 7L, TARGET, request)).thenReturn(
+                new MemberResponse(7L, TARGET, 1L, request.role(), joined, null, joined, updated));
+        // when / then
+        mvc.perform(patch("/{userId}/TEST/7", CREATOR).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"" + role + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(7))
+                .andExpect(jsonPath("$.userId").value(TARGET.toString()))
+                .andExpect(jsonPath("$.projectId").value(1))
+                .andExpect(jsonPath("$.role").value(role))
+                .andExpect(jsonPath("$.joinedAt").value("2026-09-14T09:00:00"))
+                .andExpect(jsonPath("$.leftAt").isEmpty())
+                .andExpect(jsonPath("$.createdAt").value("2026-09-14T09:00:00"))
+                .andExpect(jsonPath("$.updatedAt").value("2026-09-14T14:00:00"));
+        verify(service).update(CREATOR, "TEST", 7L, TARGET, request);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "{", "null", "{}", "{\"role\":null}", "{\"role\":\"OWNER\"}",
+            "{\"role\":\"UNKNOWN\"}"})
+    void 잘못된_수정_본문은_서비스_호출_없이_400을_반환한다(String body) throws Exception {
+        // given / when / then
+        mvc.perform(patch("/{userId}/TEST/7", CREATOR).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void 멤버_삭제는_members_경로에서_204와_빈_본문을_반환한다() throws Exception {
+        // given / when / then
+        mvc.perform(delete("/{userId}/TEST/members/7", CREATOR))
+                .andExpect(status().isNoContent()).andExpect(content().string(""));
+        verify(service).delete(CREATOR, "TEST", 7L, CREATOR);
+    }
+
+    @Test
+    void OWNER가_아닌_요청자의_수정과_삭제는_403을_반환한다() throws Exception {
+        // given
+        when(service.update(eq(CREATOR), eq("TEST"), eq(7L), eq(CREATOR), any()))
+                .thenThrow(new AccessDeniedException("OWNER 권한 필요"));
+        doThrow(new AccessDeniedException("OWNER 권한 필요"))
+                .when(service).delete(CREATOR, "TEST", 7L, CREATOR);
+        // when / then
+        mvc.perform(patch("/{userId}/TEST/7", CREATOR).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"ADMIN\"}"))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mvc.perform(delete("/{userId}/TEST/members/7", CREATOR))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void 없는_대상의_수정과_삭제는_404를_반환한다() throws Exception {
+        // given
+        when(service.update(eq(CREATOR), eq("TEST"), eq(7L), eq(CREATOR), any()))
+                .thenThrow(MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND));
+        doThrow(MemberException.of(MemberErrorCode.MEMBER_NOT_FOUND))
+                .when(service).delete(CREATOR, "TEST", 7L, CREATOR);
+        // when / then
+        mvc.perform(patch("/{userId}/TEST/7", CREATOR).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"ADMIN\"}"))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+        mvc.perform(delete("/{userId}/TEST/members/7", CREATOR))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("MEMBER_NOT_FOUND"));
+    }
+
+    @Test
+    void OWNER_대상의_수정과_삭제는_409를_반환한다() throws Exception {
+        // given
+        when(service.update(eq(CREATOR), eq("TEST"), eq(7L), eq(CREATOR), any()))
+                .thenThrow(MemberException.of(MemberErrorCode.MEMBER_OWNER_PROTECTED));
+        doThrow(MemberException.of(MemberErrorCode.MEMBER_OWNER_PROTECTED))
+                .when(service).delete(CREATOR, "TEST", 7L, CREATOR);
+        // when / then
+        mvc.perform(patch("/{userId}/TEST/7", CREATOR).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"MEMBER\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("MEMBER_OWNER_PROTECTED"));
+        mvc.perform(delete("/{userId}/TEST/members/7", CREATOR))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("MEMBER_OWNER_PROTECTED"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"abc", "9223372036854775808"})
+    void 수정과_삭제의_잘못된_멤버_ID는_400을_반환한다(String memberId) throws Exception {
+        // given / when / then
+        mvc.perform(patch("/{userId}/TEST/{memberId}", CREATOR, memberId).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"ADMIN\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(delete("/{userId}/TEST/members/{memberId}", CREATOR, memberId))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
     }
 
     /** 목록의 명세 경로가 단건 경로와 구분되고 기본 페이지 및 전체 집계를 반환하는지 확인한다. */
